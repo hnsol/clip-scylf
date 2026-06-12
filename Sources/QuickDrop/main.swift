@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 final class FloatingPanel: NSPanel {
     init(contentView: NSView) {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: 420),
+            contentRect: NSRect(x: 0, y: 0, width: 460, height: 420),
             styleMask: [.titled, .closable, .resizable, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -27,6 +27,95 @@ struct FileItem: Identifiable {
     let url: URL
     var id: URL { url }
     var name: String { url.lastPathComponent }
+}
+
+// よく使うフォルダ。パスを UserDefaults に保存する
+final class FolderStore: ObservableObject {
+    private static let key = "favoriteFolders"
+
+    @Published var folders: [URL] {
+        didSet {
+            UserDefaults.standard.set(folders.map(\.path), forKey: Self.key)
+        }
+    }
+    @Published var selected: URL?
+
+    init() {
+        let paths = UserDefaults.standard.stringArray(forKey: Self.key)
+        let urls = paths?.map { URL(fileURLWithPath: $0) }
+            ?? [FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")]
+        folders = urls
+        selected = urls.first
+    }
+
+    func add(_ url: URL) {
+        guard !folders.contains(url) else { selected = url; return }
+        folders.append(url)
+        selected = url
+    }
+
+    func remove(_ url: URL) {
+        folders.removeAll { $0 == url }
+        if selected == url { selected = folders.first }
+    }
+}
+
+struct SidebarView: View {
+    @ObservedObject var store: FolderStore
+
+    var body: some View {
+        VStack(spacing: 0) {
+            List(selection: $store.selected) {
+                ForEach(store.folders, id: \.self) { url in
+                    Label(url.lastPathComponent, systemImage: "folder")
+                        .tag(url)
+                        .contextMenu {
+                            Button("サイドバーから削除") { store.remove(url) }
+                        }
+                }
+            }
+            .listStyle(.sidebar)
+            HStack {
+                Button {
+                    addFolder()
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.borderless)
+                Spacer()
+            }
+            .padding(6)
+        }
+    }
+
+    private func addFolder() {
+        let dialog = NSOpenPanel()
+        dialog.canChooseDirectories = true
+        dialog.canChooseFiles = false
+        dialog.allowsMultipleSelection = false
+        if dialog.runModal() == .OK, let url = dialog.url {
+            store.add(url)
+        }
+    }
+}
+
+struct ContentView: View {
+    @StateObject private var store = FolderStore()
+
+    var body: some View {
+        NavigationSplitView {
+            SidebarView(store: store)
+                .navigationSplitViewColumnWidth(min: 120, ideal: 140)
+        } detail: {
+            if let folder = store.selected {
+                FileListView(items: loadItems(in: folder))
+                    .id(folder) // フォルダ切替でリストを作り直す
+            } else {
+                Text("フォルダを追加してください")
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
 }
 
 struct FileListView: View {
@@ -73,9 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let folder = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Downloads")
-        let view = NSHostingView(rootView: FileListView(items: loadItems(in: folder)))
+        let view = NSHostingView(rootView: ContentView())
         panel = FloatingPanel(contentView: view)
         // 閉じてもプロセスは生かしてパネルを再利用する
         panel.isReleasedWhenClosed = false
