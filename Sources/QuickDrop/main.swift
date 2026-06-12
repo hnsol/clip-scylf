@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 // M1: 固定フォルダの一覧をフローティングパネルに表示し、ドラッグで外部アプリへ渡す
 
@@ -41,7 +42,16 @@ struct FileListView: View {
                     .lineLimit(1)
             }
             .contentShape(Rectangle())
-            .onDrag { NSItemProvider(contentsOf: item.url)! }
+            .onDrag {
+                // contentsOf: だとドロップ先でファイル名が再生成されるため、
+                // file-url として渡して元の名前を保持する
+                let provider = NSItemProvider(
+                    item: item.url as NSURL,
+                    typeIdentifier: UTType.fileURL.identifier
+                )
+                provider.suggestedName = item.name
+                return provider
+            }
         }
         .listStyle(.inset)
     }
