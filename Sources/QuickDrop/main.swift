@@ -70,13 +70,50 @@ func loadItems(in folder: URL) -> [FileItem] {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var panel: FloatingPanel!
+    var statusItem: NSStatusItem!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let folder = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Downloads")
         let view = NSHostingView(rootView: FileListView(items: loadItems(in: folder)))
         panel = FloatingPanel(contentView: view)
-        panel.makeKeyAndOrderFront(nil)
+        // 閉じてもプロセスは生かしてパネルを再利用する
+        panel.isReleasedWhenClosed = false
+
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem.button?.image = NSImage(
+            systemSymbolName: "tray.and.arrow.up",
+            accessibilityDescription: "QuickDrop"
+        )
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem(
+            title: "パネルを表示/非表示", action: #selector(togglePanel), keyEquivalent: ""
+        ))
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(
+            title: "QuickDropを終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"
+        ))
+        statusItem.menu = menu
+
+        showPanel()
+    }
+
+    // 呼び出し元アプリのフォーカスを奪わずに前面表示する
+    func showPanel() {
+        panel.orderFrontRegardless()
+    }
+
+    @objc func togglePanel() {
+        if panel.isVisible {
+            panel.orderOut(nil)
+        } else {
+            showPanel()
+        }
+    }
+
+    // 外部ツールからの activate（open -a 等）でパネルを出す
+    func applicationDidBecomeActive(_ notification: Notification) {
+        showPanel()
     }
 }
 
