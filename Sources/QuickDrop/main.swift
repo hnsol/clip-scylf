@@ -1,13 +1,12 @@
 import AppKit
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
-
-// M1: 固定フォルダの一覧をフローティングパネルに表示し、ドラッグで外部アプリへ渡す
 
 final class FloatingPanel: NSPanel {
     init(contentView: NSView) {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 460, height: 420),
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 420),
             styleMask: [.titled, .closable, .resizable, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -22,8 +21,6 @@ final class FloatingPanel: NSPanel {
 
     override var canBecomeKey: Bool { true }
 
-    // nonactivating パネルはアプリをアクティブにしないため、
-    // ⌘Q がメインメニューへ届かない。パネル側で処理する
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if event.modifierFlags.contains(.command),
            event.charactersIgnoringModifiers == "q" {
@@ -34,294 +31,156 @@ final class FloatingPanel: NSPanel {
     }
 }
 
-struct FileItem: Identifiable {
+struct ClipItem: Identifiable, Equatable {
     let url: URL
-    let tags: [String]
-    var id: URL { url }
+
+    var id: URL { normalizedURL }
     var name: String { url.lastPathComponent }
+    var normalizedURL: URL { url.standardizedFileURL }
 }
 
-// Finder標準タグ名（日英）→ 色
-func tagColor(_ name: String) -> Color {
-    switch name {
-    case "レッド", "Red": .red
-    case "オレンジ", "Orange": .orange
-    case "イエロー", "Yellow": .yellow
-    case "グリーン", "Green": .green
-    case "ブルー", "Blue": .blue
-    case "パープル", "Purple": .purple
-    case "グレイ", "Gray": .gray
-    default: .secondary
-    }
-}
+final class ClipboardStore: ObservableObject {
+    @Published private(set) var items: [ClipItem] = []
 
-enum SidebarSelection: Hashable {
-    case folder(URL)
-    case tag(String)
-}
+    private let pasteboard: NSPasteboard
+    private var lastChangeCount: Int
+    private var timer: Timer?
+    private let maxItems = 20
 
-// よく使うフォルダ。パスを UserDefaults に保存する
-final class FolderStore: ObservableObject {
-    private static let key = "favoriteFolders"
-
-    @Published var folders: [URL] {
-        didSet {
-            UserDefaults.standard.set(folders.map(\.path), forKey: Self.key)
-        }
-    }
-    @Published var selected: SidebarSelection?
-
-    init() {
-        let paths = UserDefaults.standard.stringArray(forKey: Self.key)
-        let urls = paths?.map { URL(fileURLWithPath: $0) }
-            ?? [FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")]
-        folders = urls
-        selected = urls.first.map(SidebarSelection.folder)
+    init(pasteboard: NSPasteboard = .general) {
+        self.pasteboard = pasteboard
+        lastChangeCount = pasteboard.changeCount
     }
 
-    func add(_ url: URL) {
-        if !folders.contains(url) { folders.append(url) }
-        selected = .folder(url)
+    deinit {
+        stop()
     }
 
-    func remove(_ url: URL) {
-        folders.removeAll { $0 == url }
-        if selected == .folder(url) { selected = folders.first.map(SidebarSelection.folder) }
-    }
-}
-
-// Spotlight (mdfind) でタグ一覧とタグ付きファイルを取得する
-final class TagStore: ObservableObject {
-    @Published var allTags: [String] = []
-    @Published var files: [FileItem] = []
-
-    init() {
-        collectTags()
-    }
-
-    // ファイル読み取り権限(TCC)に依存しないよう、タグは mdfind -attr の
-    // 出力から取る。resourceValues だと Full Disk Access のない場所で失敗する
-    private func mdfindWithTags(_ query: String) -> [(path: String, tags: [String])] {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
-        p.arguments = ["-attr", "kMDItemUserTags", query]
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        try? p.run()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
-
-        // 出力形式:
-        //   /path/to/file   kMDItemUserTags = (
-        //       "tag1",
-        //       tag2
-        //   )
-        var results: [(String, [String])] = []
-        var path: String?
-        var tags: [String] = []
-        for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
-            if let range = line.range(of: "   kMDItemUserTags = (") {
-                path = String(line[..<range.lowerBound])
-                tags = []
-            } else if line == ")" {
-                if let p = path { results.append((p, tags)) }
-                path = nil
-            } else if path != nil {
-                var t = line.trimmingCharacters(in: .whitespaces)
-                if t.hasSuffix(",") { t.removeLast() }
-                if t.hasPrefix("\""), t.hasSuffix("\""), t.count >= 2 {
-                    t = String(t.dropFirst().dropLast())
-                }
-                if !t.isEmpty { tags.append(Self.decodeUnicodeEscapes(t)) }
-            }
-        }
-        return results
-    }
-
-    // mdfind は非ASCII文字を \Uxxxx 形式で出力するためデコードする
-    private static func decodeUnicodeEscapes(_ s: String) -> String {
-        guard s.contains("\\U") else { return s }
-        var result = ""
-        var rest = Substring(s)
-        while let range = rest.range(of: "\\U") {
-            result += rest[..<range.lowerBound]
-            let hex = rest[range.upperBound...].prefix(4)
-            if hex.count == 4, let code = UInt32(hex, radix: 16),
-               let scalar = Unicode.Scalar(code) {
-                result.unicodeScalars.append(scalar)
-                rest = rest[range.upperBound...].dropFirst(4)
-            } else {
-                result += "\\U"
-                rest = rest[range.upperBound...]
-            }
-        }
-        result += rest
-        return result
-    }
-
-    // Mac全体のタグ付きファイルからタグ名一覧を作る
-    func collectTags() {
-        DispatchQueue.global().async { [weak self] in
-            guard let self else { return }
-            let results = self.mdfindWithTags("kMDItemUserTags == '*'")
-            var tags = Set<String>()
-            for (_, t) in results { tags.formUnion(t) }
-            let sorted = tags.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
-            DispatchQueue.main.async { self.allTags = sorted }
+    func start() {
+        readPasteboard()
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.poll()
         }
     }
 
-    func selectTag(_ tag: String) {
-        files = []
-        DispatchQueue.global().async { [weak self] in
-            guard let self else { return }
-            let escaped = tag.replacingOccurrences(of: "'", with: "\\'")
-            let items = self.mdfindWithTags("kMDItemUserTags == '\(escaped)'")
-                .map { FileItem(url: URL(fileURLWithPath: $0.path), tags: $0.tags) }
-                .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-            DispatchQueue.main.async { self.files = items }
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    func clear() {
+        items = []
+    }
+
+    func remove(_ item: ClipItem) {
+        items.removeAll { $0.normalizedURL == item.normalizedURL }
+    }
+
+    private func poll() {
+        let current = pasteboard.changeCount
+        guard current != lastChangeCount else { return }
+        lastChangeCount = current
+        readPasteboard()
+    }
+
+    private func readPasteboard() {
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [
+            .urlReadingFileURLsOnly: true
+        ]
+        guard let objects = pasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: options
+        ), !objects.isEmpty else {
+            return
         }
+        let urls = objects.compactMap { object -> URL? in
+            if let url = object as? URL { return url }
+            if let url = object as? NSURL { return url as URL }
+            return nil
+        }
+        guard !urls.isEmpty else { return }
+
+        let newItems = urls.map { ClipItem(url: $0) }
+        let newIDs = Set(newItems.map(\.normalizedURL))
+        let oldItems = items.filter { !newIDs.contains($0.normalizedURL) }
+        items = Array((newItems + oldItems).prefix(maxItems))
     }
 }
 
-struct SidebarView: View {
-    @ObservedObject var store: FolderStore
-    @ObservedObject var tagStore: TagStore
+struct ClipTrayView: View {
+    @ObservedObject var store: ClipboardStore
 
     var body: some View {
         VStack(spacing: 0) {
-            List(selection: $store.selected) {
-                Section("フォルダ") {
-                    ForEach(store.folders, id: \.self) { url in
-                        Label(url.lastPathComponent, systemImage: "folder")
-                            .tag(SidebarSelection.folder(url))
-                            .contextMenu {
-                                Button("サイドバーから削除") { store.remove(url) }
+            if store.items.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.system(size: 34))
+                        .foregroundStyle(.secondary)
+                    Text("yazi/Finderでファイルをコピーしてください")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(store.items) { item in
+                    ClipRow(item: item)
+                        .contextMenu {
+                            Button("リストから削除") {
+                                store.remove(item)
                             }
-                    }
-                }
-                Section("タグ") {
-                    ForEach(tagStore.allTags, id: \.self) { name in
-                        HStack {
-                            Circle()
-                                .fill(tagColor(name))
-                                .frame(width: 9, height: 9)
-                            Text(name)
                         }
-                        .tag(SidebarSelection.tag(name))
-                    }
                 }
+                .listStyle(.inset)
             }
-            .listStyle(.sidebar)
+
+            Divider()
             HStack {
-                Button {
-                    addFolder()
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .buttonStyle(.borderless)
-                Spacer()
-            }
-            .padding(6)
-        }
-    }
-
-    private func addFolder() {
-        let dialog = NSOpenPanel()
-        dialog.canChooseDirectories = true
-        dialog.canChooseFiles = false
-        dialog.allowsMultipleSelection = false
-        if dialog.runModal() == .OK, let url = dialog.url {
-            store.add(url)
-        }
-    }
-}
-
-struct ContentView: View {
-    @StateObject private var store = FolderStore()
-    @StateObject private var tagStore = TagStore()
-
-    var body: some View {
-        NavigationSplitView {
-            SidebarView(store: store, tagStore: tagStore)
-                .navigationSplitViewColumnWidth(min: 120, ideal: 140)
-        } detail: {
-            switch store.selected {
-            case .folder(let folder):
-                FileListView(items: loadItems(in: folder))
-                    .id(folder) // フォルダ切替でリストを作り直す
-            case .tag(let tag):
-                FileListView(items: tagStore.files)
-                    .onAppear { tagStore.selectTag(tag) }
-                    .id(tag)
-            case nil:
-                Text("フォルダを追加してください")
+                Text("\(store.items.count)件")
                     .foregroundStyle(.secondary)
+                Spacer()
+                Button("クリア") {
+                    store.clear()
+                }
+                .disabled(store.items.isEmpty)
             }
+            .padding(8)
         }
     }
 }
 
-struct FileListView: View {
-    let items: [FileItem]
+struct ClipRow: View {
+    let item: ClipItem
 
     var body: some View {
-        List(items) { item in
-            HStack {
-                Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
-                    .resizable()
-                    .frame(width: 20, height: 20)
-                Text(item.name)
-                    .lineLimit(1)
-                Spacer()
-                // Finderタグを色付きドットで表示
-                HStack(spacing: 3) {
-                    ForEach(item.tags, id: \.self) { tag in
-                        Circle()
-                            .fill(tagColor(tag))
-                            .frame(width: 8, height: 8)
-                            .help(tag)
-                    }
-                }
-            }
-            .contentShape(Rectangle())
-            .onDrag {
-                // contentsOf: だとドロップ先でファイル名が再生成されるため、
-                // file-url として渡して元の名前を保持する
-                let provider = NSItemProvider(
-                    item: item.url as NSURL,
-                    typeIdentifier: UTType.fileURL.identifier
-                )
-                provider.suggestedName = item.name
-                return provider
-            }
+        HStack(spacing: 8) {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
+                .resizable()
+                .frame(width: 22, height: 22)
+            Text(item.name)
+                .lineLimit(1)
+            Spacer()
         }
-        .listStyle(.inset)
+        .contentShape(Rectangle())
+        .onDrag {
+            let provider = NSItemProvider(
+                item: item.url as NSURL,
+                typeIdentifier: UTType.fileURL.identifier
+            )
+            provider.suggestedName = item.name
+            return provider
+        }
     }
-}
-
-func loadItems(in folder: URL) -> [FileItem] {
-    let urls = (try? FileManager.default.contentsOfDirectory(
-        at: folder,
-        includingPropertiesForKeys: [.tagNamesKey],
-        options: [.skipsHiddenFiles]
-    )) ?? []
-    return urls
-        .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
-        .map { url in
-            let tags = (try? url.resourceValues(forKeys: [.tagNamesKey]).tagNames) ?? nil
-            return FileItem(url: url, tags: tags ?? [])
-        }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var panel: FloatingPanel!
     var statusItem: NSStatusItem!
+    let clipboardStore = ClipboardStore()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let view = NSHostingView(rootView: ContentView())
+        let view = NSHostingView(rootView: ClipTrayView(store: clipboardStore))
         panel = FloatingPanel(contentView: view)
-        // 閉じてもプロセスは生かしてパネルを再利用する
         panel.isReleasedWhenClosed = false
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -339,10 +198,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ))
         statusItem.menu = menu
 
+        clipboardStore.start()
         showPanel()
     }
 
-    // 呼び出し元アプリのフォーカスを奪わずに前面表示する
     func showPanel() {
         panel.orderFrontRegardless()
     }
@@ -355,7 +214,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // 外部ツールからの activate（open -a 等）でパネルを出す
     func applicationDidBecomeActive(_ notification: Notification) {
         showPanel()
     }
