@@ -47,3 +47,36 @@ build/ClipScylf.app
 - Shortcut handling is intentionally outside the app.
 - File operations such as move, delete, and rename are out of scope.
 - Use `AGENTS.md` and `CLAUDE.md` for project direction and agent handoff context.
+
+## 日本語
+
+ClipScylfは、コピー済みのファイルURLをドラッグ&ドロップ用の棚にするmacOSメニューバーアプリです。
+
+yaziやFinderでコピーしたファイルをシステムクリップボードから読み取り、小さなフローティングウィンドウに表示します。そこからTeams、Mail、ブラウザなどへ、通常のファイルとしてドラッグ&ドロップできます。
+
+### ビルド
+
+```sh
+./build.sh
+```
+
+生成物:
+
+```text
+build/ClipScylf.app
+```
+
+### 主な動作
+
+- Dockアイコンなしのメニューバーアプリとして動作します。
+- 起動中はクリップボードのファイルURLを監視します。
+- 新しいファイルURLを検知すると、左下にミニウィンドウを表示します。
+- ミニウィンドウから通常ウィンドウへ展開できます。
+- 複数選択とまとめてドラッグ&ドロップに対応します。
+- 最大20件まで保持します。
+
+### 開発メモ
+
+- App Sandboxはオフです。
+- ショートカット起動はアプリ外のツールに任せます。
+- ファイルの移動、削除、リネームは扱いません。
