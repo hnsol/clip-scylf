@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 final class FloatingPanel: NSPanel {
     var onClose: (() -> Void)?
+    var onSelectAll: (() -> Void)?
 
     init(contentView: NSView) {
         super.init(
@@ -31,6 +32,11 @@ final class FloatingPanel: NSPanel {
         if event.modifierFlags.contains(.command),
            event.charactersIgnoringModifiers == "q" {
             NSApp.terminate(nil)
+            return true
+        }
+        if event.modifierFlags.contains(.command),
+           event.charactersIgnoringModifiers == "a" {
+            onSelectAll?()
             return true
         }
         return super.performKeyEquivalent(with: event)
@@ -150,7 +156,7 @@ final class ClipboardStore: ObservableObject {
 
 struct ClipTrayView: View {
     @ObservedObject var store: ClipboardStore
-    let onMiniaturize: () -> Void
+    let onSelectAll: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -159,7 +165,7 @@ struct ClipTrayView: View {
                     Image(systemName: "doc.on.clipboard")
                         .font(.system(size: 34))
                         .foregroundStyle(.secondary)
-                    Text("yazi/Finderでファイルをコピーしてください")
+                    Text("ファイルをコピーしてください")
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -175,9 +181,10 @@ struct ClipTrayView: View {
                 Text("\(store.items.count)件")
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("ミニへ") {
-                    onMiniaturize()
+                Button("全選択") {
+                    onSelectAll()
                 }
+                .disabled(store.items.isEmpty)
                 Button("クリア") {
                     store.clear()
                 }
@@ -258,7 +265,12 @@ struct ClipTableView: NSViewRepresentable {
         tableView.selectionHighlightStyle = .regular
         tableView.dataSource = context.coordinator
         tableView.delegate = context.coordinator
+        tableView.target = context.coordinator
+        tableView.doubleAction = nil
         tableView.setDraggingSourceOperationMask(.copy, forLocal: false)
+        DispatchQueue.main.async {
+            tableView.window?.makeFirstResponder(tableView)
+        }
 
         let column = NSTableColumn(identifier: .clipItemColumn)
         column.width = 360
@@ -436,6 +448,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fullPanel.onClose = { [weak self] in
             self?.handlePanelClose()
         }
+        fullPanel.onSelectAll = { [weak self] in
+            self?.selectAllInFullPanel()
+        }
         miniPanel = MiniPanel(contentView: NSHostingView(rootView: EmptyView()))
         miniPanel.isReleasedWhenClosed = false
 
@@ -483,7 +498,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let size = NSSize(width: 360, height: 420)
         let view = NSHostingView(rootView: ClipTrayView(
             store: clipboardStore,
-            onMiniaturize: { [weak self] in self?.showMini() }
+            onSelectAll: { [weak self] in
+                self?.selectAllInFullPanel()
+            }
         ).frame(width: size.width, height: size.height))
         view.frame = NSRect(origin: .zero, size: size)
         view.autoresizingMask = [.width, .height]
@@ -492,6 +509,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fullPanel.setContentSize(size)
         positionPanelAtBottomLeft(fullPanel, size: fullPanel.frame.size)
         fullPanel.orderFrontRegardless()
+        fullPanel.makeKey()
     }
 
     func hideMini() {
@@ -527,6 +545,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func openFullPanel() {
         showFull()
+    }
+
+    func selectAllInFullPanel() {
+        guard displayState == .full,
+              let tableView = findTableView(in: fullPanel.contentView) else {
+            return
+        }
+        fullPanel.makeFirstResponder(tableView)
+        tableView.selectAll(nil)
+    }
+
+    func findTableView(in view: NSView?) -> NSTableView? {
+        guard let view else { return nil }
+        if let tableView = view as? NSTableView {
+            return tableView
+        }
+        for subview in view.subviews {
+            if let tableView = findTableView(in: subview) {
+                return tableView
+            }
+        }
+        return nil
     }
 
 }
