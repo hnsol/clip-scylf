@@ -4,10 +4,10 @@ cd "$(dirname "$0")"
 
 swift build -c release
 
-APP=build/QuickDrop.app
+APP=build/ClipScylf.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 cp Info.plist "$APP/Contents/"
-cp .build/release/QuickDrop "$APP/Contents/MacOS/"
+cp .build/release/ClipScylf "$APP/Contents/MacOS/"
 
 echo "OK: $APP"

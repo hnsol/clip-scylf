@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "QuickDrop",
+    name: "ClipScylf",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "QuickDrop",
+            name: "ClipScylf",
             path: "Sources/QuickDrop"
         )
     ]

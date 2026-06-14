@@ -1,64 +1,73 @@
-# QuickDrop（仮）— ドラッグ専用ミニFinder
+# ClipScylf — クリップボード監視ドラッグトレイ
 
 ## このプロジェクトは何か
 
-macOS用の常駐ミニアプリ。ショートカット（アプリ外で設定）で呼び出すと、
-ファイル一覧のフローティングパネルがポップアップし、そこから任意のアプリへ
-ファイルをドラッグ&ドロップして添付できる。「余計な機能のないFinder」。
+macOS用の常駐ミニアプリ。yaziやFinderでコピーされたファイルURLを
+システムクリップボードから拾い、フローティングパネルに溜める。
+そこから Teams、Mail、ブラウザ等へOS標準のドラッグ&ドロップで添付する。
 
-## 成立条件（これが満たせなければ何を作っても無意味）
+ファイル選択はyazi/Finder側で行う。ClipScylfは「コピー済みファイルを
+外部アプリへ投げるための薄いトレイ」に徹する。
 
-**グローバルに即座に出せるフローティングパネルが、選んだファイルを
-OS標準のドラッグとして外部アプリ（Mail, Slack, ブラウザ等）に渡せること。**
+名前の由来: `Clip`（クリップボード）+ `Scylf`（shelfの古英語形）。
 
-サイドバー・タグ・最近の項目はすべてこの上の肉付けであり、後回し。
+## 成立条件
+
+**yazi/Finderでコピーしたファイルが即座にパネルへ表示され、
+そこから外部アプリへファイル名を保ったままドラッグ&ドロップできること。**
+
+フォルダ一覧、サイドバー、タグ、最近の項目は現在の主方向ではない。
 
 ## 設計上の確定事項
 
 - **App Sandbox はオフ**。自分用アプリでApp Store配布はしない。
-  security-scoped bookmarks の複雑さを避ける
-- パネルは `NSPanel` + `.nonactivatingPanel`。呼び出し元アプリの
-  フォーカスを奪わない（Spotlight/Raycast と同じ挙動）。
-  `level = .floating` でドラッグ中も最前面
-- ドラッグ出しは `onDrag { NSItemProvider(contentsOf: url)! }` から開始。
-  複数選択ドラッグが必要になったら AppKit の `NSDraggingSession` に落とす
-- UIは SwiftUI、ウィンドウ管理だけ AppKit ブリッジ
-- メニューバー常駐（`LSUIElement = YES`）、Dockアイコンなし
-- ショートカット起動はアプリ側では実装しない。外部ツールから
-  activate されたらパネルを表示するだけ
+- パネルは `NSPanel` + `.nonactivatingPanel`。
+  呼び出し元アプリのフォーカスを奪わない。
+- `level = .floating` で前面表示する。
+- UIは SwiftUI、ウィンドウ管理だけ AppKit ブリッジ。
+- メニューバー常駐（`LSUIElement = YES`）、Dockアイコンなし。
+- ショートカット起動はアプリ側では実装しない。
+  外部ツールから activate されたらパネルを表示する。
+- クリップボードは `NSPasteboard.general.changeCount` をTimerで監視する。
+- ファイルURL取得は
+  `readObjects(forClasses:[NSURL.self], options:[.urlReadingFileURLsOnly:true])`
+  を使う。plain-textパスのフォールバックは不要。
+- ドラッグ出しは `NSItemProvider` に `UTType.fileURL.identifier` を渡し、
+  `suggestedName` でファイル名を保持する。
 
-## プロジェクト構成の方針
+## 現在の仕様
 
-- Xcode GUI に依存しない。SPM executable target + 手書き Info.plist
-- ビルドは `swift build` または `xcodebuild` でCLI完結させる
-- `.app` バンドル化はスクリプトで行う（Makefile か build.sh）
+- 起動時に既存クリップボードのファイルURLも読む。
+- 新しくコピーされたファイルを先頭へ積む。
+- 同一ファイルを再コピーしたら重複させず先頭へ移動する。
+- 保持上限は20件。
+- 通常は窓なしで監視し、ファイルURL追加時に左下ミニウィンドウを出す。
+- ミニウィンドウをクリックすると通常ウィンドウへ拡大する。
+- 通常ウィンドウを閉じるとミニウィンドウへ戻る。
+- ミニウィンドウの閉じるボタンは非表示に戻すだけで、監視は継続する。
+- メニューバーから通常ウィンドウを開ける。
+- 複数行を選択してまとめてドラッグ&ドロップできる。
+- 通常ウィンドウで全選択できる。
+- 行ごとの削除ボタン、または右クリックで削除できる。
+- 下部ボタンで全件クリアできる。
 
-## マイルストーン
+## プロジェクト構成
 
-1. **M1（最優先）**: 固定の1フォルダの中身を一覧表示し、
-   1ファイルをドラッグして Mail.app に添付できる
-2. M2: パネルの nonactivating 挙動とメニューバー常駐
-3. M3: サイドバー（よく使うフォルダ、UserDefaults にパス保存）
-4. M4: Finderタグ（`URLResourceValues.tagNames` で読む）
-5. M5: 最近使った項目（`NSMetadataQuery` + `kMDItemLastUsedDate`）
-6. M6: サムネイル（`QLThumbnailGenerator`）、見た目の調整
-
-## 実装メモ
-
-- ファイル一覧: `FileManager.contentsOfDirectory(at:includingPropertiesForKeys:)`
-- Finderタグ: `try url.resourceValues(forKeys: [.tagNamesKey]).tagNames`
-- 最近の項目: Spotlight検索。`NSMetadataQuery` の predicate に
-  `kMDItemLastUsedDate` を使い、Finderの「最近の項目」相当を得る
-- パネルは `canBecomeKey` をオーバーライドして検索フィールド等で
-  キー入力が必要なときだけ true にする調整が必要になる可能性あり
+- Xcode GUI に依存しない。
+- SPM executable target + 手書き `Info.plist`。
+- ビルドは `swift build` または `./build.sh`。
+- `.app` バンドル化は `build.sh` で行う。
+- 主実装は `Sources/QuickDrop/main.swift`。
+  フォルダ名は移行途中で残っていてもよい。名称上の正はClipScylf。
 
 ## 検証の役割分担
 
-ビルドエラーまではClaude Codeが回す。パネルの出方・ドラッグの手触り・
-他アプリへのドロップ成否は人間（ぼく）が実機で確認して報告する。
+ビルドエラーまではCodexが回す。パネルの出方、ドラッグの手触り、
+Teams/Mail/ブラウザへのドロップ成否は人間が実機で確認する。
 
 ## やらないこと
 
-- ファイル操作（移動・削除・リネーム）。これはFinderの仕事
-- App Store配布、署名・公証（必要になったら別途）
-- アプリ内ショートカット設定UI
+- ファイル操作（移動・削除・リネーム）。
+- App Store配布、署名・公証。
+- アプリ内ショートカット設定UI。
+- アプリ内ファイルブラウザ、タグブラウザ、最近の項目一覧。

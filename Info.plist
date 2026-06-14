@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>local.quickdrop</string>
+    <string>local.clipscylf</string>
     <key>CFBundleName</key>
-    <string>QuickDrop</string>
+    <string>ClipScylf</string>
     <key>CFBundleExecutable</key>
-    <string>QuickDrop</string>
+    <string>ClipScylf</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

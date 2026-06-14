@@ -14,7 +14,7 @@ final class FloatingPanel: NSPanel {
             backing: .buffered,
             defer: false
         )
-        title = "QuickDrop"
+        title = "ClipScylf"
         level = .floating
         isFloatingPanel = true
         hidesOnDeactivate = false
@@ -457,7 +457,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(
             systemSymbolName: "tray.and.arrow.up",
-            accessibilityDescription: "QuickDrop"
+            accessibilityDescription: "ClipScylf"
         )
         let menu = NSMenu()
         menu.addItem(NSMenuItem(
@@ -465,7 +465,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(
-            title: "QuickDropを終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"
+            title: "ClipScylfを終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"
         ))
         statusItem.menu = menu
 
@@ -507,8 +507,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         miniPanel.orderOut(nil)
         fullPanel.contentView = view
         fullPanel.setContentSize(size)
-        positionPanelAtBottomLeft(fullPanel, size: fullPanel.frame.size)
         fullPanel.orderFrontRegardless()
+        positionPanelAtCenter(fullPanel)
         fullPanel.makeKey()
     }
 
@@ -539,6 +539,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let origin = NSPoint(
             x: visibleFrame.minX + margin,
             y: visibleFrame.minY + margin
+        )
+        panel.setFrameOrigin(origin)
+    }
+
+    func positionPanelAtCenter(_ panel: NSPanel) {
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else {
+            panel.center()
+            return
+        }
+        let visibleFrame = screen.visibleFrame
+        let size = panel.frame.size
+        let origin = NSPoint(
+            x: visibleFrame.midX - size.width / 2,
+            y: visibleFrame.midY - size.height / 2
         )
         panel.setFrameOrigin(origin)
     }
