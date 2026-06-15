@@ -223,6 +223,8 @@ struct ClipMiniView: View {
                 }
                 .padding(.horizontal, 12)
                 .frame(width: 190, height: 58)
+                .background(Rectangle().fill(Color.white.opacity(0.001)))
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
@@ -441,6 +443,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     let clipboardStore = ClipboardStore()
     var displayState: DisplayState = .hiddenMonitoring
+    private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         fullPanel = FloatingPanel(contentView: NSHostingView(rootView: EmptyView()))
@@ -473,10 +476,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self, self.displayState == .hiddenMonitoring else { return }
             self.showMini()
         }
+        clipboardStore.$items
+            .sink { [weak self] items in
+                guard let self, items.isEmpty, self.displayState == .mini else { return }
+                self.hideMini()
+            }
+            .store(in: &cancellables)
         clipboardStore.start()
     }
 
     func showMini() {
+        guard !clipboardStore.items.isEmpty else {
+            hideMini()
+            return
+        }
         displayState = .mini
         let size = NSSize(width: 190, height: 58)
         let view = NSHostingView(rootView: ClipMiniView(
@@ -525,7 +538,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .mini:
             hideMini()
         case .full:
-            showMini()
+            if clipboardStore.items.isEmpty {
+                displayState = .hiddenMonitoring
+                fullPanel.orderOut(nil)
+            } else {
+                showMini()
+            }
         }
     }
 
