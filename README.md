@@ -1,5 +1,9 @@
 # ClipScylf
 
+<p align="center">
+  <img src="Resources/AppIcon.png" alt="ClipScylf app icon" width="128" height="128">
+</p>
+
 ClipScylf is a small macOS menu bar utility for turning copied file URLs into a drag-and-drop shelf.
 
 The app watches the system pasteboard for files copied from tools such as yazi or Finder, shows a small floating mini window, and expands into a file tray that can drag files into apps such as Teams, Mail, and browsers.
