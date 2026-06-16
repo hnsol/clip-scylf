@@ -459,7 +459,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(
-            systemSymbolName: "tray.and.arrow.up",
+            systemSymbolName: "rectangle.and.paperclip",
             accessibilityDescription: "ClipScylf"
         )
         let menu = NSMenu()
