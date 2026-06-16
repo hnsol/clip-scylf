@@ -1,7 +1,7 @@
 # ClipScylf
 
 <p align="center">
-  <img src="Resources/AppIcon.png" alt="ClipScylf app icon" width="128" height="128">
+  <img src="Resources/AppIcon.png" alt="ClipScylf app icon" width="256" height="256">
 </p>
 
 ClipScylf is a small macOS menu bar utility for turning copied file URLs into a drag-and-drop shelf.
