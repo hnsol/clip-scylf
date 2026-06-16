@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import QuartzCore
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -443,6 +444,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     let clipboardStore = ClipboardStore()
     var displayState: DisplayState = .hiddenMonitoring
+    private var miniAnimationID = 0
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -502,8 +504,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fullPanel.orderOut(nil)
         miniPanel.contentView = view
         miniPanel.setContentSize(size)
-        positionPanelAtBottomLeft(miniPanel, size: miniPanel.frame.size)
+        miniAnimationID += 1
+        let finalOrigin = bottomLeftOrigin(for: miniPanel.frame.size)
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            miniPanel.alphaValue = 1
+            miniPanel.setFrameOrigin(finalOrigin)
+            miniPanel.orderFrontRegardless()
+            return
+        }
+        let startOrigin = NSPoint(
+            x: finalOrigin.x - miniPanel.frame.size.width - 18,
+            y: finalOrigin.y
+        )
+        miniPanel.alphaValue = 0.85
+        miniPanel.setFrame(NSRect(origin: startOrigin, size: miniPanel.frame.size), display: true)
         miniPanel.orderFrontRegardless()
+        miniPanel.display()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 1.0
+            context.allowsImplicitAnimation = true
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.12, 0.9, 0.2, 1)
+            miniPanel.animator().setFrame(NSRect(origin: finalOrigin, size: miniPanel.frame.size), display: true)
+            miniPanel.animator().alphaValue = 1
+        } completionHandler: { [weak self] in
+            guard let self else { return }
+            self.miniPanel.setFrameOrigin(finalOrigin)
+            self.miniPanel.alphaValue = 1
+        }
     }
 
     func showFull() {
@@ -527,7 +554,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func hideMini() {
         displayState = .hiddenMonitoring
-        miniPanel.orderOut(nil)
+        miniAnimationID += 1
+        let animationID = miniAnimationID
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            miniPanel.orderOut(nil)
+            miniPanel.alphaValue = 1
+            return
+        }
+        let endOrigin = NSPoint(
+            x: miniPanel.frame.origin.x - miniPanel.frame.size.width - 18,
+            y: miniPanel.frame.origin.y
+        )
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 1.5
+            context.allowsImplicitAnimation = true
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.12, 0.9, 0.2, 1)
+            miniPanel.animator().setFrame(NSRect(origin: endOrigin, size: miniPanel.frame.size), display: true)
+            miniPanel.animator().alphaValue = 0
+        } completionHandler: { [weak self] in
+            guard let self, self.miniAnimationID == animationID else { return }
+            self.miniPanel.orderOut(nil)
+            self.miniPanel.alphaValue = 1
+        }
     }
 
     func handlePanelClose() {
@@ -548,17 +596,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func positionPanelAtBottomLeft(_ panel: NSPanel, size: NSSize) {
-        guard let screen = NSScreen.main ?? NSScreen.screens.first else {
+        guard NSScreen.main ?? NSScreen.screens.first != nil else {
             panel.center()
             return
         }
+        panel.setFrameOrigin(bottomLeftOrigin(for: size))
+    }
+
+    func bottomLeftOrigin(for size: NSSize) -> NSPoint {
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else {
+            return .zero
+        }
         let visibleFrame = screen.visibleFrame
         let margin: CGFloat = 18
-        let origin = NSPoint(
+        return NSPoint(
             x: visibleFrame.minX + margin,
             y: visibleFrame.minY + margin
         )
-        panel.setFrameOrigin(origin)
     }
 
     func positionPanelAtCenter(_ panel: NSPanel) {
