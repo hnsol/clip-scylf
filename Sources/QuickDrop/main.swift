@@ -161,23 +161,6 @@ struct ClipTrayView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if store.items.isEmpty {
-                VStack(spacing: 10) {
-                    Image(systemName: "doc.on.clipboard")
-                        .font(.system(size: 34))
-                        .foregroundStyle(.secondary)
-                    Text("ファイルをコピーしてください")
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ClipTableView(items: store.items) { item in
-                    store.remove(item)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-
-            Divider()
             HStack {
                 Text("\(store.items.count)件")
                     .foregroundStyle(.secondary)
@@ -192,6 +175,24 @@ struct ClipTrayView: View {
                 .disabled(store.items.isEmpty)
             }
             .padding(8)
+
+            Divider()
+
+            if store.items.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "archivebox")
+                        .font(.system(size: 34))
+                        .foregroundStyle(.secondary)
+                    Text("ファイルをコピーしてください")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ClipTableView(items: store.items) { item in
+                    store.remove(item)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
     }
 }
