@@ -58,7 +58,7 @@ final class MiniPanel: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = true
-        isMovableByWindowBackground = true
+        isMovableByWindowBackground = false
         self.contentView = contentView
     }
 
@@ -204,31 +204,27 @@ struct ClipMiniView: View {
 
     var body: some View {
         ZStack(alignment: .trailing) {
-            Button {
-                onExpand()
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "doc.on.clipboard")
-                        .font(.system(size: 22))
-                        .foregroundStyle(.blue)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(store.items.count)件")
-                            .font(.system(size: 12, weight: .bold))
-                        Text(store.items.first?.name ?? "ファイルなし")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    Spacer()
-                    Color.clear.frame(width: 18)
+            HStack(spacing: 10) {
+                Image(systemName: "archivebox.fill")
+                    .font(.system(size: 22))
+                    .foregroundStyle(.blue)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(store.items.count)件")
+                        .font(.system(size: 12, weight: .bold))
+                    Text(store.items.first?.name ?? "ファイルなし")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                 }
-                .padding(.horizontal, 12)
-                .frame(width: 190, height: 58)
-                .background(Rectangle().fill(Color.white.opacity(0.001)))
-                .contentShape(Rectangle())
+                Spacer()
+                Color.clear.frame(width: 18)
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .frame(width: 190, height: 58)
+            .background(Rectangle().fill(Color.white.opacity(0.001)))
+            .contentShape(Rectangle())
+            .overlay(MiniDragSource(items: store.items, onClick: onExpand))
 
             Button {
                 onClose()
@@ -243,6 +239,189 @@ struct ClipMiniView: View {
         }
         .frame(width: 190, height: 58)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+struct MiniDragSource: NSViewRepresentable {
+    let items: [ClipItem]
+    let onClick: () -> Void
+
+    func makeNSView(context: Context) -> DragSourceView {
+        DragSourceView(items: items, onClick: onClick)
+    }
+
+    func updateNSView(_ nsView: DragSourceView, context: Context) {
+        nsView.items = items
+        nsView.onClick = onClick
+    }
+
+    final class DragSourceView: NSView, NSDraggingSource {
+        var items: [ClipItem]
+        var onClick: () -> Void
+        private var mouseDownEvent: NSEvent?
+        private var isDragging = false
+
+        init(items: [ClipItem], onClick: @escaping () -> Void) {
+            self.items = items
+            self.onClick = onClick
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) {
+            items = []
+            onClick = {}
+            super.init(coder: coder)
+        }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+            true
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            mouseDownEvent = event
+            isDragging = false
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            guard !isDragging,
+                  let mouseDownEvent,
+                  dragDistance(from: mouseDownEvent, to: event) >= 4,
+                  !items.isEmpty else {
+                return
+            }
+            isDragging = true
+            beginDraggingSession(
+                with: draggingItems(for: items, event: event),
+                event: event,
+                source: self
+            )
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            if !isDragging {
+                onClick()
+            }
+            mouseDownEvent = nil
+            isDragging = false
+        }
+
+        func draggingSession(
+            _ session: NSDraggingSession,
+            sourceOperationMaskFor context: NSDraggingContext
+        ) -> NSDragOperation {
+            .copy
+        }
+
+        private func dragDistance(from start: NSEvent, to current: NSEvent) -> CGFloat {
+            let dx = current.locationInWindow.x - start.locationInWindow.x
+            let dy = current.locationInWindow.y - start.locationInWindow.y
+            return sqrt(dx * dx + dy * dy)
+        }
+
+        private func draggingItems(for items: [ClipItem], event: NSEvent) -> [NSDraggingItem] {
+            let origin = convert(event.locationInWindow, from: nil)
+            let previewSize = NSSize(width: 154, height: 54)
+            let previewImage = dragPreviewImage(for: items, size: previewSize)
+            let clearImage = NSImage(size: NSSize(width: 1, height: 1))
+
+            return items.enumerated().map { index, item in
+                let draggingItem = NSDraggingItem(pasteboardWriter: item.url as NSURL)
+                if index == 0 {
+                    let frame = NSRect(
+                        x: origin.x + 10,
+                        y: origin.y - previewSize.height - 10,
+                        width: previewSize.width,
+                        height: previewSize.height
+                    )
+                    draggingItem.setDraggingFrame(frame, contents: previewImage)
+                } else {
+                    draggingItem.setDraggingFrame(
+                        NSRect(x: origin.x, y: origin.y, width: 1, height: 1),
+                        contents: clearImage
+                    )
+                }
+                return draggingItem
+            }
+        }
+
+        private func dragPreviewImage(for items: [ClipItem], size: NSSize) -> NSImage {
+            let image = NSImage(size: size)
+            image.lockFocus()
+
+            NSGraphicsContext.current?.imageInterpolation = .high
+            drawStackShadow(in: NSRect(origin: .zero, size: size), count: items.count)
+
+            let cardRect = NSRect(x: 0, y: 4, width: size.width - 6, height: size.height - 8)
+            let cardPath = NSBezierPath(roundedRect: cardRect, xRadius: 12, yRadius: 12)
+            NSColor.windowBackgroundColor.withAlphaComponent(0.96).setFill()
+            cardPath.fill()
+            NSColor.separatorColor.withAlphaComponent(0.45).setStroke()
+            cardPath.lineWidth = 1
+            cardPath.stroke()
+
+            if let first = items.first {
+                let iconConfig = NSImage.SymbolConfiguration(pointSize: 24, weight: .semibold)
+                let archiveIcon = NSImage(
+                    systemSymbolName: "archivebox.fill",
+                    accessibilityDescription: "ClipScylf"
+                )?.withSymbolConfiguration(iconConfig)
+                archiveIcon?.draw(in: NSRect(x: 14, y: 15, width: 24, height: 24))
+                drawFileName(first.name, in: NSRect(x: 48, y: 16, width: 76, height: 18))
+            }
+
+            if items.count > 1 {
+                drawCountBadge(items.count, in: NSRect(x: size.width - 34, y: size.height - 24, width: 28, height: 18))
+            }
+
+            image.unlockFocus()
+            return image
+        }
+
+        private func drawStackShadow(in rect: NSRect, count: Int) {
+            guard count > 1 else { return }
+            for offset in [6, 3] {
+                let shadowRect = NSRect(
+                    x: CGFloat(offset),
+                    y: 4 - CGFloat(offset) / 2,
+                    width: rect.width - 6,
+                    height: rect.height - 8
+                )
+                let path = NSBezierPath(roundedRect: shadowRect, xRadius: 12, yRadius: 12)
+                NSColor.windowBackgroundColor.withAlphaComponent(offset == 6 ? 0.28 : 0.45).setFill()
+                path.fill()
+            }
+        }
+
+        private func drawFileName(_ name: String, in rect: NSRect) {
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.lineBreakMode = .byTruncatingMiddle
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+                .foregroundColor: NSColor.labelColor,
+                .paragraphStyle: paragraph
+            ]
+            (name as NSString).draw(in: rect, withAttributes: attributes)
+        }
+
+        private func drawCountBadge(_ count: Int, in rect: NSRect) {
+            let path = NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9)
+            NSColor.controlAccentColor.setFill()
+            path.fill()
+
+            let text = "\(count)"
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 11, weight: .bold),
+                .foregroundColor: NSColor.white
+            ]
+            let textSize = (text as NSString).size(withAttributes: attributes)
+            let textRect = NSRect(
+                x: rect.midX - textSize.width / 2,
+                y: rect.midY - textSize.height / 2,
+                width: textSize.width,
+                height: textSize.height
+            )
+            (text as NSString).draw(in: textRect, withAttributes: attributes)
+        }
     }
 }
 
