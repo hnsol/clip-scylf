@@ -47,7 +47,7 @@ final class FloatingPanel: NSPanel {
 final class MiniPanel: NSPanel {
     init(contentView: NSView) {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 190, height: 58),
+            contentRect: NSRect(x: 0, y: 0, width: 240, height: 76),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -180,7 +180,7 @@ struct ClipTrayView: View {
 
             if store.items.isEmpty {
                 VStack(spacing: 10) {
-                    Image(systemName: "archivebox")
+                    Image(systemName: "tray.full.fill")
                         .font(.system(size: 34))
                         .foregroundStyle(.secondary)
                     Text("ファイルをコピーしてください")
@@ -201,44 +201,75 @@ struct ClipMiniView: View {
     @ObservedObject var store: ClipboardStore
     let onExpand: () -> Void
     let onClose: () -> Void
+    @State private var isHovering = false
+    private let miniWidth: CGFloat = 240
+    private let miniHeight: CGFloat = 76
 
     var body: some View {
-        ZStack(alignment: .trailing) {
-            HStack(spacing: 10) {
-                Image(systemName: "archivebox.fill")
-                    .font(.system(size: 22))
-                    .foregroundStyle(.blue)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(store.items.count)件")
-                        .font(.system(size: 12, weight: .bold))
-                    Text(store.items.first?.name ?? "ファイルなし")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+        ZStack {
+            HStack(spacing: 0) {
+                Color.clear.frame(width: 28)
+                Spacer(minLength: 0)
+                HStack(spacing: 10) {
+                    Image(systemName: "tray.full.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(.blue)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(store.items.count)件")
+                            .font(.system(size: 12, weight: .bold))
+                        Text(store.items.first?.name ?? "ファイルなし")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                 }
-                Spacer()
-                Color.clear.frame(width: 18)
+                .frame(maxWidth: 162)
+                Spacer(minLength: 0)
+                Color.clear.frame(width: 40)
             }
-            .padding(.horizontal, 12)
-            .frame(width: 190, height: 58)
+            .padding(.horizontal, 10)
+            .frame(width: miniWidth, height: miniHeight)
             .background(Rectangle().fill(Color.white.opacity(0.001)))
             .contentShape(Rectangle())
             .overlay(MiniDragSource(items: store.items, onClick: onExpand))
 
-            Button {
-                onClose()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
+            if isHovering {
+                Button {
+                    onClose()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .padding(.leading, 10)
+                .padding(.top, 8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .help("閉じる")
+
+                Button {
+                    store.clear()
+                } label: {
+                    Image(systemName: "trash.circle.fill")
+                        .font(.system(size: 18))
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .padding(.trailing, 14)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                .help("クリア")
             }
-            .buttonStyle(.plain)
-            .padding(.trailing, 10)
-            .help("閉じる")
         }
-        .frame(width: 190, height: 58)
+        .frame(width: miniWidth, height: miniHeight)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isHovering = hovering
+            }
+        }
     }
 }
 
@@ -362,7 +393,7 @@ struct MiniDragSource: NSViewRepresentable {
             if let first = items.first {
                 let iconConfig = NSImage.SymbolConfiguration(pointSize: 24, weight: .semibold)
                 let archiveIcon = NSImage(
-                    systemSymbolName: "archivebox.fill",
+                    systemSymbolName: "tray.full.fill",
                     accessibilityDescription: "ClipScylf"
                 )?.withSymbolConfiguration(iconConfig)
                 archiveIcon?.draw(in: NSRect(x: 14, y: 15, width: 24, height: 24))
@@ -641,7 +672,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(
-            systemSymbolName: "archivebox.fill",
+            systemSymbolName: "tray.full.fill",
             accessibilityDescription: "ClipScylf"
         )
         let menu = NSMenu()
@@ -673,7 +704,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         displayState = .mini
-        let size = NSSize(width: 190, height: 58)
+        let size = NSSize(width: 240, height: 76)
         let view = NSHostingView(rootView: ClipMiniView(
             store: clipboardStore,
             onExpand: { [weak self] in self?.showFull() },
