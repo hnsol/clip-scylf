@@ -224,8 +224,8 @@ struct ClipMiniView: View {
                     .truncationMode(.middle)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.leading, 26)
-            .padding(.trailing, 30)
+            .padding(.leading, 38)
+            .padding(.trailing, 40)
             .frame(width: miniWidth, height: miniHeight)
             .background(Rectangle().fill(Color.white.opacity(0.001)))
             .contentShape(Rectangle())
