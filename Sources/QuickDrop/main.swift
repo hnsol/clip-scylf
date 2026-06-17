@@ -677,6 +677,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         let menu = NSMenu()
         menu.addItem(NSMenuItem(
+            title: "ミニウィンドウを表示", action: #selector(openMiniPanel), keyEquivalent: ""
+        ))
+        menu.addItem(NSMenuItem(
             title: "通常ウィンドウを開く", action: #selector(openFullPanel), keyEquivalent: ""
         ))
         menu.addItem(.separator())
@@ -842,6 +845,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func openFullPanel() {
         showFull()
+    }
+
+    @objc func openMiniPanel() {
+        showMini()
     }
 
     func selectAllInFullPanel() {
