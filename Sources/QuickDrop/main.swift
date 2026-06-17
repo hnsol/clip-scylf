@@ -207,28 +207,25 @@ struct ClipMiniView: View {
 
     var body: some View {
         ZStack {
-            HStack(spacing: 0) {
-                Color.clear.frame(width: 28)
-                Spacer(minLength: 0)
-                HStack(spacing: 10) {
-                    Image(systemName: "tray.full.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(.blue)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(store.items.count)件")
-                            .font(.system(size: 12, weight: .bold))
-                        Text(store.items.first?.name ?? "ファイルなし")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
+            HStack(alignment: .top, spacing: 8) {
+                if !store.items.isEmpty {
+                    Text("\(store.items.count)")
+                        .font(.system(size: 12, weight: .bold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.accentColor, in: Capsule())
+                        .foregroundStyle(.white)
                 }
-                .frame(maxWidth: 162)
-                Spacer(minLength: 0)
-                Color.clear.frame(width: 40)
+
+                Text(store.items.first?.name ?? "ファイルなし")
+                    .font(.system(size: 13))
+                    .foregroundStyle(store.items.isEmpty ? .secondary : .primary)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, 10)
+            .padding(.leading, 26)
+            .padding(.trailing, 30)
             .frame(width: miniWidth, height: miniHeight)
             .background(Rectangle().fill(Color.white.opacity(0.001)))
             .contentShape(Rectangle())
