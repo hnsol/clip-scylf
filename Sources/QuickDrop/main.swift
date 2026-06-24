@@ -199,6 +199,7 @@ struct ClipTrayView: View {
 
 struct ClipMiniView: View {
     @ObservedObject var store: ClipboardStore
+    let isInactive: Bool
     let onExpand: () -> Void
     let onClose: () -> Void
     @State private var isHovering = false
@@ -229,9 +230,13 @@ struct ClipMiniView: View {
             .frame(width: miniWidth, height: miniHeight)
             .background(Rectangle().fill(Color.white.opacity(0.001)))
             .contentShape(Rectangle())
-            .overlay(MiniDragSource(items: store.items, onClick: onExpand))
+            .overlay {
+                if !isInactive {
+                    MiniDragSource(items: store.items, onClick: onExpand)
+                }
+            }
 
-            if isHovering {
+            if isHovering && !isInactive {
                 Button {
                     onClose()
                 } label: {
@@ -263,6 +268,10 @@ struct ClipMiniView: View {
         .frame(width: miniWidth, height: miniHeight)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
         .onHover { hovering in
+            guard !isInactive else {
+                isHovering = false
+                return
+            }
             withAnimation(.easeOut(duration: 0.12)) {
                 isHovering = hovering
             }
@@ -691,11 +700,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         clipboardStore.$items
             .sink { [weak self] items in
-                guard let self, items.isEmpty, self.displayState == .mini else { return }
-                self.hideMini()
+                guard let self, items.isEmpty else { return }
+                switch self.displayState {
+                case .mini:
+                    self.hideMini()
+                case .full:
+                    self.orderOutMini(resetInteraction: true)
+                case .hiddenMonitoring:
+                    break
+                }
             }
             .store(in: &cancellables)
         clipboardStore.start()
+    }
+
+    func configureMiniView(isInactive: Bool) {
+        let size = NSSize(width: 240, height: 76)
+        let view = NSHostingView(rootView: ClipMiniView(
+            store: clipboardStore,
+            isInactive: isInactive,
+            onExpand: { [weak self] in self?.showFull() },
+            onClose: { [weak self] in self?.hideMini() }
+        ))
+        view.frame = NSRect(origin: .zero, size: size)
+        view.autoresizingMask = [.width, .height]
+        miniPanel.contentView = view
+        miniPanel.setContentSize(size)
     }
 
     func showMini() {
@@ -704,18 +734,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         displayState = .mini
-        let size = NSSize(width: 240, height: 76)
-        let view = NSHostingView(rootView: ClipMiniView(
-            store: clipboardStore,
-            onExpand: { [weak self] in self?.showFull() },
-            onClose: { [weak self] in self?.hideMini() }
-        ))
-        view.frame = NSRect(origin: .zero, size: size)
-        view.autoresizingMask = [.width, .height]
+        configureMiniView(isInactive: false)
         fullPanel.orderOut(nil)
-        miniPanel.contentView = view
-        miniPanel.setContentSize(size)
+        miniPanel.ignoresMouseEvents = false
         miniAnimationID += 1
+        let animationID = miniAnimationID
         let finalOrigin = bottomLeftOrigin(for: miniPanel.frame.size)
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             miniPanel.alphaValue = 1
@@ -738,9 +761,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             miniPanel.animator().setFrame(NSRect(origin: finalOrigin, size: miniPanel.frame.size), display: true)
             miniPanel.animator().alphaValue = 1
         } completionHandler: { [weak self] in
-            guard let self else { return }
+            guard let self, self.miniAnimationID == animationID else { return }
             self.miniPanel.setFrameOrigin(finalOrigin)
             self.miniPanel.alphaValue = 1
+            self.miniPanel.ignoresMouseEvents = false
         }
     }
 
@@ -755,7 +779,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ).frame(width: size.width, height: size.height))
         view.frame = NSRect(origin: .zero, size: size)
         view.autoresizingMask = [.width, .height]
-        miniPanel.orderOut(nil)
+        if clipboardStore.items.isEmpty {
+            orderOutMini(resetInteraction: true)
+        } else {
+            showInactiveMini()
+        }
         fullPanel.contentView = view
         fullPanel.setContentSize(size)
         fullPanel.orderFrontRegardless()
@@ -763,15 +791,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fullPanel.makeKey()
     }
 
+    func showInactiveMini() {
+        configureMiniView(isInactive: true)
+        miniAnimationID += 1
+        miniPanel.setFrameOrigin(bottomLeftOrigin(for: miniPanel.frame.size))
+        miniPanel.alphaValue = 0.5
+        miniPanel.ignoresMouseEvents = false
+        miniPanel.orderFrontRegardless()
+    }
+
+    func orderOutMini(resetInteraction: Bool) {
+        miniAnimationID += 1
+        miniPanel.orderOut(nil)
+        miniPanel.alphaValue = 1
+        if resetInteraction {
+            miniPanel.ignoresMouseEvents = false
+        }
+    }
+
     func hideMini() {
         displayState = .hiddenMonitoring
         miniAnimationID += 1
         let animationID = miniAnimationID
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-            miniPanel.orderOut(nil)
-            miniPanel.alphaValue = 1
+            orderOutMini(resetInteraction: true)
             return
         }
+        miniPanel.ignoresMouseEvents = false
         let endOrigin = NSPoint(
             x: miniPanel.frame.origin.x - miniPanel.frame.size.width - 18,
             y: miniPanel.frame.origin.y
@@ -784,8 +830,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             miniPanel.animator().alphaValue = 0
         } completionHandler: { [weak self] in
             guard let self, self.miniAnimationID == animationID else { return }
-            self.miniPanel.orderOut(nil)
-            self.miniPanel.alphaValue = 1
+            self.orderOutMini(resetInteraction: true)
         }
     }
 
@@ -793,7 +838,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch displayState {
         case .hiddenMonitoring:
             fullPanel.orderOut(nil)
-            miniPanel.orderOut(nil)
+            orderOutMini(resetInteraction: true)
         case .mini:
             hideMini()
         case .full:
