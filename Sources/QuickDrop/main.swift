@@ -794,10 +794,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func showInactiveMini() {
         configureMiniView(isInactive: true)
         miniAnimationID += 1
+        let animationID = miniAnimationID
         miniPanel.setFrameOrigin(bottomLeftOrigin(for: miniPanel.frame.size))
-        miniPanel.alphaValue = 0.5
         miniPanel.ignoresMouseEvents = false
         miniPanel.orderFrontRegardless()
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            miniPanel.alphaValue = 0.5
+            return
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            context.allowsImplicitAnimation = true
+            miniPanel.animator().alphaValue = 0.5
+        } completionHandler: { [weak self] in
+            guard let self, self.miniAnimationID == animationID else { return }
+            self.miniPanel.alphaValue = 0.5
+        }
+    }
+
+    func restoreMiniFromFull() {
+        guard !clipboardStore.items.isEmpty else {
+            hideMini()
+            return
+        }
+        displayState = .mini
+        configureMiniView(isInactive: false)
+        fullPanel.orderOut(nil)
+        miniPanel.ignoresMouseEvents = false
+        miniAnimationID += 1
+        let animationID = miniAnimationID
+        miniPanel.orderFrontRegardless()
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            miniPanel.alphaValue = 1
+            return
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            context.allowsImplicitAnimation = true
+            miniPanel.animator().alphaValue = 1
+        } completionHandler: { [weak self] in
+            guard let self, self.miniAnimationID == animationID else { return }
+            self.miniPanel.alphaValue = 1
+        }
     }
 
     func orderOutMini(resetInteraction: Bool) {
@@ -846,7 +884,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 displayState = .hiddenMonitoring
                 fullPanel.orderOut(nil)
             } else {
-                showMini()
+                restoreMiniFromFull()
             }
         }
     }
@@ -890,7 +928,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func openMiniPanel() {
-        showMini()
+        if displayState == .full {
+            restoreMiniFromFull()
+        } else {
+            showMini()
+        }
     }
 
     func selectAllInFullPanel() {
