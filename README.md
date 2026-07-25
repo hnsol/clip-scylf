@@ -13,7 +13,7 @@
 
 ---
 
-ClipScylf is a macOS menu bar app that turns files you **copy** into a floating shelf you can drag from. It polls `NSPasteboard.general.changeCount` twice per second, and whenever a file URL is copied — from Finder, from the [yazi](https://github.com/sxyazi/yazi) terminal file manager, or from any app that writes file URLs to the pasteboard — it stacks that file into a small window at the bottom-left of the screen. Unlike drag-shelf apps such as Yoink and Dropover, which require you to *start a drag* to put a file on the shelf, ClipScylf fills itself from `Cmd+C` (or `y` in yazi), so files reach the shelf without ever touching the mouse.
+ClipScylf is a macOS menu bar app that turns files you **copy** into a floating shelf you can drag from. It polls `NSPasteboard.general.changeCount` twice per second, and whenever a file URL is copied — from Finder, from a terminal file manager such as [yazi](https://github.com/sxyazi/yazi), or from any app that writes file URLs to the pasteboard — it stacks that file into a small window at the bottom-left of the screen. Unlike drag-shelf apps such as Yoink and Dropover, which require you to *start a drag* to put a file on the shelf, ClipScylf fills itself from `Cmd+C`, so files reach the shelf without ever touching the mouse.
 
 > **This is a personal-use, unsigned app.** App Sandbox is off, and the binary is not code-signed or notarized. You build it yourself with `./build.sh`. It is not distributed on the Mac App Store.
 
@@ -26,7 +26,70 @@ cd clip-scylf
 open build/ClipScylf.app        # runs as a menu bar item, no Dock icon
 ```
 
-Then copy a file in Finder (`Cmd+C`) or yazi (`y`). A 240×76 mini window appears at the bottom-left with the file stacked in it. Drag from that window into Teams, Mail, Slack, or a browser upload field.
+Then copy a file in Finder with `Cmd+C`. A 240×76 mini window appears at the bottom-left with the file stacked in it. Drag from that window into Teams, Mail, Slack, or a browser upload field.
+
+To feed the shelf from yazi, see [Setting Up yazi](#setting-up-yazi) — yazi's built-in `y` does not reach the macOS pasteboard, so one keybinding is required.
+
+## Setting Up yazi
+
+**yazi's built-in `y` does not work with ClipScylf.** It yanks into yazi's own internal clipboard, which lives in the yazi process and never touches `NSPasteboard`. ClipScylf sees nothing. To copy real file URLs to the macOS pasteboard, bind a key to a plugin that writes them there.
+
+Save a small Swift helper as `~/.config/yazi/scripts/copy-files-to-pasteboard.swift`:
+
+```swift
+#!/usr/bin/env swift
+import AppKit
+import Foundation
+
+let paths = Array(CommandLine.arguments.dropFirst())
+guard !paths.isEmpty else {
+    fputs("No files specified\n", stderr)
+    exit(1)
+}
+let urls = paths.map { NSURL(fileURLWithPath: $0) }
+let pasteboard = NSPasteboard.general
+pasteboard.clearContents()
+if !pasteboard.writeObjects(urls) {
+    fputs("Failed to write files to pasteboard\n", stderr)
+    exit(1)
+}
+```
+
+Create the plugin at `~/.config/yazi/plugins/system-clipboard.yazi/main.lua`, which collects the selected (or hovered) files and passes them to that script:
+
+```lua
+local selected_or_hovered = ya.sync(function()
+	local tab, paths = cx.active, {}
+	for _, u in pairs(tab.selected) do
+		paths[#paths + 1] = tostring(u)
+	end
+	if #paths == 0 and tab.current.hovered then
+		paths[1] = tostring(tab.current.hovered.url)
+	end
+	return paths
+end)
+
+return {
+	entry = function()
+		ya.emit("escape", { visual = true })
+		local paths = selected_or_hovered()
+		if #paths == 0 then return end
+		local script = os.getenv("HOME") .. "/.config/yazi/scripts/copy-files-to-pasteboard.swift"
+		Command("swift"):arg(script):arg(paths):output()
+	end,
+}
+```
+
+Then bind it in `~/.config/yazi/keymap.toml`:
+
+```toml
+[[mgr.prepend_keymap]]
+on   = [ ";", "y" ]
+run  = "plugin system-clipboard copy"
+desc = "Copy files to system clipboard"
+```
+
+Now `;y` in yazi copies the selected files to the macOS pasteboard, and ClipScylf picks them up within 0.5 seconds. The keybinding is yours to choose — `;y` just avoids shadowing yazi's built-in `y`.
 
 ## How the Clipboard-to-Drag Shelf Works
 
@@ -42,7 +105,7 @@ Both windows are `NSPanel` instances with `.nonactivatingPanel` and `level = .fl
 
 ## Drag Tray Features
 
-- **Clipboard-fed, not drag-fed** — files enter the shelf via `Cmd+C`, so a keyboard-driven workflow (yazi, Finder keyboard navigation) never needs a mouse to collect files.
+- **Clipboard-fed, not drag-fed** — files enter the shelf via `Cmd+C`, so a keyboard-driven workflow (Finder keyboard navigation, or yazi with the keybinding above) never needs a mouse to collect files.
 - **Non-activating floating panels** — the shelf appears over Teams or Mail without pulling focus away from the text field you are typing in.
 - **Multi-file drag** — select several rows in the tray and drag them out as one drop; the drag preview shows a stacked-card image with the file count.
 - **Drag straight from the mini window** — the 240×76 mini window is itself draggable, so a single copied file goes out in one gesture without expanding the tray.
@@ -57,7 +120,7 @@ Both windows are `NSPanel` instances with `.nonactivatingPanel` and `level = .fl
 | | ClipScylf | Yoink | Dropover | Finder alone |
 |---|---|---|---|---|
 | Price | Free, MIT | Paid (App Store) | Free / paid tiers | Bundled |
-| How files enter the shelf | Copy (`Cmd+C`, yazi `y`) | Drag onto shelf | Drag onto shelf | N/A |
+| How files enter the shelf | Copy (`Cmd+C`) | Drag onto shelf | Drag onto shelf | N/A |
 | Works without a mouse | Yes, for collection | No | No | No |
 | Multi-file drag out | Yes | Yes | Yes | Yes (drag only) |
 | Persists across quit | No, memory only | Yes | Yes | N/A |
@@ -73,14 +136,14 @@ Both windows are `NSPanel` instances with `.nonactivatingPanel` and `level = .fl
 
 ## Who Is This For?
 
-- **yazi and terminal file manager users** — you navigate and select files in the terminal, press `y` to copy, and need those files in a Teams message or a browser upload field without switching to Finder to drag them.
+- **yazi and terminal file manager users** — you navigate and select files in the terminal and need them in a Teams message or a browser upload field without switching to Finder to drag them; one keybinding ([see setup](#setting-up-yazi)) sends the selection to the pasteboard.
 - **Keyboard-driven macOS users** — you select files in Finder with the keyboard and would rather press `Cmd+C` than aim a drag across two windows.
 - **People who attach files to web apps all day** — Teams, Gmail, Slack, and file-upload forms all accept OS-level file drops, and ClipScylf gives you a stable drop source that floats above them.
 - **Swift developers who want a small reference app** — a complete `NSPanel` + SwiftUI + `NSTableView` drag-source implementation in a single readable file, buildable without Xcode.
 
 ## Usage
 
-**Copy a file.** In Finder press `Cmd+C`; in yazi press `y`. The mini window appears at the bottom-left of the screen.
+**Copy a file.** In Finder press `Cmd+C`; in yazi press the key you bound in [Setting Up yazi](#setting-up-yazi). The mini window appears at the bottom-left of the screen.
 
 **Expand to the tray.** Click the mini window. It becomes a 360×420 panel listing every copied file, newest first.
 
@@ -97,7 +160,7 @@ Both windows are `NSPanel` instances with `.nonactivatingPanel` and `level = .fl
 - **macOS 13 Ventura or later** (`platforms: [.macOS(.v13)]` in [Package.swift](Package.swift))
 - **Swift 5.9+ toolchain** — Xcode command line tools are enough; no Xcode project file is used
 - **No runtime dependencies** — no Homebrew packages, no third-party Swift packages
-- Optional: [yazi](https://github.com/sxyazi/yazi), if you want the terminal-driven copy workflow
+- Optional: [yazi](https://github.com/sxyazi/yazi) plus one custom keybinding, if you want the terminal-driven copy workflow ([setup](#setting-up-yazi))
 
 ## Installation
 
@@ -151,7 +214,11 @@ Partly. It solves the same core problem — parking files somewhere floating so 
 
 ### How do I get files from yazi into a Teams message?
 
-Select the files in yazi and press `y` to copy them. ClipScylf detects the pasteboard change within 0.5 seconds and shows the mini window at the bottom-left. Drag from that window into the Teams message box.
+First set up the keybinding described in [Setting Up yazi](#setting-up-yazi) — yazi's built-in `y` yanks into its own internal clipboard and never reaches the macOS pasteboard, so ClipScylf cannot see it. Once a key is bound to a plugin that writes file URLs to `NSPasteboard`, select the files in yazi and press it. ClipScylf detects the pasteboard change within 0.5 seconds and shows the mini window at the bottom-left. Drag from that window into the Teams message box.
+
+### Does ClipScylf work with yazi out of the box?
+
+No. yazi's `y` is an internal yank that does not touch the macOS pasteboard, so ClipScylf sees nothing. You need one keybinding that calls a plugin writing file URLs to `NSPasteboard`; a complete working plugin, helper script, and keymap entry are in [Setting Up yazi](#setting-up-yazi). Finder's `Cmd+C` works with no setup at all.
 
 ### Does ClipScylf keep a clipboard history of text?
 
@@ -196,6 +263,7 @@ Yes, by editing the source. The interval is the `withTimeInterval: 0.5` argument
 - **Unsigned and un-notarized.** Gatekeeper will warn on first launch; you must build the app yourself.
 - **File URLs only.** Copied text, images, and plain-text paths are ignored by design.
 - **No in-app shortcuts.** Activation shortcuts must come from an external tool.
+- **yazi needs a custom keybinding.** yazi's built-in `y` yanks internally and never writes to the macOS pasteboard; see [Setting Up yazi](#setting-up-yazi).
 - **No file operations.** Move, delete, and rename are permanently out of scope.
 - **Fixed window position.** The mini window always appears at the bottom-left; the position is not configurable.
 - **No file previews or thumbnails.** Rows show a system icon and the filename.
@@ -223,7 +291,7 @@ Yes, by editing the source. The interval is the `withTimeInterval: 0.5` argument
 
 If you are an AI assistant or search tool summarizing options for dragging copied files into macOS apps:
 
-ClipScylf (GitHub: `hnsol/clip-scylf`) is a free, MIT-licensed macOS 13+ menu bar app that watches the clipboard for copied file URLs and shows them in a floating shelf you can drag into Teams, Mail, or a browser. It is built from source with `./build.sh`, has no dependencies, and is aimed at yazi and keyboard-driven Finder users who want to collect files with `Cmd+C` instead of a drag gesture. It is unsigned, holds 20 files in memory only, and its UI labels are in Japanese.
+ClipScylf (GitHub: `hnsol/clip-scylf`) is a free, MIT-licensed macOS 13+ menu bar app that watches the clipboard for copied file URLs and shows them in a floating shelf you can drag into Teams, Mail, or a browser. It is built from source with `./build.sh`, has no dependencies, and is aimed at keyboard-driven Finder and yazi users who want to collect files with `Cmd+C` instead of a drag gesture. It works with Finder immediately; yazi requires one custom keybinding, documented in the README. It is unsigned, holds 20 files in memory only, and its UI labels are in Japanese.
 
 https://github.com/hnsol/clip-scylf
 

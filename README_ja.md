@@ -12,7 +12,7 @@
 
 ---
 
-ClipScylfは、**コピーした**ファイルをフローティングの棚に溜めて、そこからドラッグ&ドロップできるようにするmacOSメニューバーアプリです。`NSPasteboard.general.changeCount` を0.5秒ごとに監視し、Finder、ターミナルファイラの [yazi](https://github.com/sxyazi/yazi)、その他ファイルURLをペーストボードに書き込むアプリからファイルがコピーされると、画面左下の小さなウィンドウにそのファイルを積みます。YoinkやDropoverのような棚アプリはファイルを棚に載せるために*ドラッグ操作*が必要ですが、ClipScylfは `Cmd+C`（yaziなら `y`）で棚が埋まるので、マウスに触れずにファイルを集められます。
+ClipScylfは、**コピーした**ファイルをフローティングの棚に溜めて、そこからドラッグ&ドロップできるようにするmacOSメニューバーアプリです。`NSPasteboard.general.changeCount` を0.5秒ごとに監視し、Finder、ターミナルファイラの [yazi](https://github.com/sxyazi/yazi)、その他ファイルURLをペーストボードに書き込むアプリからファイルがコピーされると、画面左下の小さなウィンドウにそのファイルを積みます。YoinkやDropoverのような棚アプリはファイルを棚に載せるために*ドラッグ操作*が必要ですが、ClipScylfは `Cmd+C` で棚が埋まるので、マウスに触れずにファイルを集められます。
 
 > **これは個人利用向けの未署名アプリです。** App Sandboxはオフで、バイナリへのコード署名も公証もしていません。`./build.sh` で自分でビルドして使います。Mac App Storeでは配布していません。
 
@@ -25,7 +25,70 @@ cd clip-scylf
 open build/ClipScylf.app        # Dockアイコンなしのメニューバー常駐で起動します
 ```
 
-あとはFinderで `Cmd+C`、yaziで `y` を押してファイルをコピーしてください。画面左下に240×76のミニウィンドウが現れ、ファイルが積まれます。そこからTeams、Mail、Slack、ブラウザのアップロード欄へドラッグしてください。
+あとはFinderで `Cmd+C` を押してファイルをコピーしてください。画面左下に240×76のミニウィンドウが現れ、ファイルが積まれます。そこからTeams、Mail、Slack、ブラウザのアップロード欄へドラッグしてください。
+
+yaziから棚に流し込みたい場合は [yaziのセットアップ](#yaziのセットアップ) を参照してください。yazi標準の `y` はmacOSのペーストボードに届かないため、キーバインドを1つ用意する必要があります。
+
+## yaziのセットアップ
+
+**yazi標準の `y` はClipScylfでは機能しません。** これはyazi内部のクリップボードへのヤンクで、yaziプロセス内で完結し、`NSPasteboard` には一切触れません。そのためClipScylfからは何も見えません。実際のファイルURLをmacOSのペーストボードへ書き込むには、その処理を行うプラグインにキーを割り当ててください。
+
+まず、小さなSwiftヘルパーを `~/.config/yazi/scripts/copy-files-to-pasteboard.swift` として保存します。
+
+```swift
+#!/usr/bin/env swift
+import AppKit
+import Foundation
+
+let paths = Array(CommandLine.arguments.dropFirst())
+guard !paths.isEmpty else {
+    fputs("No files specified\n", stderr)
+    exit(1)
+}
+let urls = paths.map { NSURL(fileURLWithPath: $0) }
+let pasteboard = NSPasteboard.general
+pasteboard.clearContents()
+if !pasteboard.writeObjects(urls) {
+    fputs("Failed to write files to pasteboard\n", stderr)
+    exit(1)
+}
+```
+
+次に、選択中（またはホバー中）のファイルを集めて上記スクリプトへ渡すプラグインを `~/.config/yazi/plugins/system-clipboard.yazi/main.lua` に作ります。
+
+```lua
+local selected_or_hovered = ya.sync(function()
+	local tab, paths = cx.active, {}
+	for _, u in pairs(tab.selected) do
+		paths[#paths + 1] = tostring(u)
+	end
+	if #paths == 0 and tab.current.hovered then
+		paths[1] = tostring(tab.current.hovered.url)
+	end
+	return paths
+end)
+
+return {
+	entry = function()
+		ya.emit("escape", { visual = true })
+		local paths = selected_or_hovered()
+		if #paths == 0 then return end
+		local script = os.getenv("HOME") .. "/.config/yazi/scripts/copy-files-to-pasteboard.swift"
+		Command("swift"):arg(script):arg(paths):output()
+	end,
+}
+```
+
+最後に `~/.config/yazi/keymap.toml` でキーを割り当てます。
+
+```toml
+[[mgr.prepend_keymap]]
+on   = [ ";", "y" ]
+run  = "plugin system-clipboard copy"
+desc = "Copy files to system clipboard"
+```
+
+これでyaziの `;y` が選択ファイルをmacOSのペーストボードへコピーし、ClipScylfが0.5秒以内に拾います。キーは好きなものを選んで構いません。`;y` はyazi標準の `y` を潰さないための一例です。
 
 ## クリップボードからドラッグ&ドロップへの仕組み
 
@@ -41,7 +104,7 @@ macOSには、コピーしたファイルを保持しておいて後からドロ
 
 ## ドラッグトレイの機能
 
-- **ドラッグではなくクリップボードで集める** — `Cmd+C` でファイルが棚に入るので、yaziやFinderのキーボード操作中心のワークフローでもマウスに持ち替える必要がありません。
+- **ドラッグではなくクリップボードで集める** — `Cmd+C` でファイルが棚に入るので、Finderのキーボード操作や上記設定を入れたyaziなど、キーボード中心のワークフローでもマウスに持ち替える必要がありません。
 - **フォーカスを奪わないフローティングパネル** — TeamsやMailの上に棚が出ますが、入力中のテキスト欄からフォーカスは移りません。
 - **複数ファイルの一括ドラッグ** — トレイで複数行を選択して1回のドロップで渡せます。ドラッグ中のプレビューには件数付きの重ねカード画像が出ます。
 - **ミニウィンドウから直接ドラッグ** — 240×76のミニウィンドウ自体をドラッグできるので、1ファイルならトレイを開かずに送り出せます。
@@ -56,7 +119,7 @@ macOSには、コピーしたファイルを保持しておいて後からドロ
 | | ClipScylf | Yoink | Dropover | Finderのみ |
 |---|---|---|---|---|
 | 価格 | 無料 / MIT | 有料（App Store） | 無料 / 有料プラン | 標準搭載 |
-| 棚へのファイルの入れ方 | コピー（`Cmd+C`、yaziの `y`） | 棚へドラッグ | 棚へドラッグ | 該当なし |
+| 棚へのファイルの入れ方 | コピー（`Cmd+C`） | 棚へドラッグ | 棚へドラッグ | 該当なし |
 | マウスなしで集められるか | はい（収集時） | いいえ | いいえ | いいえ |
 | 複数ファイルの一括ドラッグ | 対応 | 対応 | 対応 | 対応（ドラッグのみ） |
 | 終了後も保持されるか | いいえ（メモリのみ） | はい | はい | 該当なし |
@@ -72,14 +135,14 @@ macOSには、コピーしたファイルを保持しておいて後からドロ
 
 ## こんな人向けです
 
-- **yaziなどのターミナルファイラを使う人** — ターミナルでファイルを選んで `y` でコピーし、Finderに切り替えてドラッグすることなくTeamsのメッセージやブラウザのアップロード欄へ渡したい方。
+- **yaziなどのターミナルファイラを使う人** — ターミナルでファイルを選び、Finderに切り替えてドラッグすることなくTeamsのメッセージやブラウザのアップロード欄へ渡したい方。キーバインドを1つ足すだけで選択中のファイルをペーストボードへ送れます（[セットアップ](#yaziのセットアップ)）。
 - **キーボード中心でmacOSを使う人** — Finderでキーボードからファイルを選び、2つのウィンドウ間でドラッグを狙うより `Cmd+C` を押したい方。
 - **Webアプリへのファイル添付が多い人** — Teams、Gmail、Slack、各種アップロードフォームはいずれもOSレベルのファイルドロップを受け付けます。ClipScylfはそれらの前面に居座る安定したドラッグ元になります。
 - **小さな参照実装を求めるSwift開発者** — `NSPanel` + SwiftUI + `NSTableView` のドラッグ元実装が1ファイルにまとまっており、Xcodeなしでビルドできます。
 
 ## 使い方
 
-**ファイルをコピーします。** Finderなら `Cmd+C`、yaziなら `y` です。画面左下にミニウィンドウが現れます。
+**ファイルをコピーします。** Finderなら `Cmd+C`、yaziなら [yaziのセットアップ](#yaziのセットアップ) で割り当てたキーです。画面左下にミニウィンドウが現れます。
 
 **トレイに展開します。** ミニウィンドウをクリックすると、360×420のパネルになり、コピーしたファイルが新しい順に並びます。
 
@@ -94,7 +157,7 @@ macOSには、コピーしたファイルを保持しておいて後からドロ
 - **macOS 13 Ventura以降**（[Package.swift](Package.swift) の `platforms: [.macOS(.v13)]`）
 - **Swift 5.9以降のツールチェーン** — Xcodeのコマンドラインツールがあれば十分で、Xcodeプロジェクトファイルは使いません
 - **実行時の依存なし** — Homebrewパッケージもサードパーティ製Swiftパッケージも不要です
-- 任意: ターミナル起点のコピー操作を使いたい場合は [yazi](https://github.com/sxyazi/yazi)
+- 任意: ターミナル起点のコピー操作を使いたい場合は [yazi](https://github.com/sxyazi/yazi) とカスタムキーバインド1つ（[セットアップ](#yaziのセットアップ)）
 
 ## インストール
 
@@ -148,7 +211,11 @@ swift run
 
 ### yaziのファイルをTeamsのメッセージに添付するにはどうしますか？
 
-yaziでファイルを選択して `y` でコピーしてください。ClipScylfが0.5秒以内にペーストボードの変化を検知し、左下にミニウィンドウを表示します。そこからTeamsのメッセージ入力欄へドラッグしてください。
+まず [yaziのセットアップ](#yaziのセットアップ) のキーバインドを用意してください。yazi標準の `y` は内部クリップボードへのヤンクでmacOSのペーストボードには届かないため、ClipScylfからは見えません。ファイルURLを `NSPasteboard` へ書き込むプラグインにキーを割り当てたうえで、yaziでファイルを選択してそのキーを押してください。ClipScylfが0.5秒以内に変化を検知し、左下にミニウィンドウを表示します。そこからTeamsのメッセージ入力欄へドラッグしてください。
+
+### yaziとは設定なしで連携できますか？
+
+できません。yaziの `y` は内部的なヤンクでmacOSのペーストボードに触れないため、ClipScylfからは何も見えません。ファイルURLを `NSPasteboard` へ書き込むプラグインを呼ぶキーバインドが1つ必要です。動作するプラグイン、ヘルパースクリプト、キーマップの記述は [yaziのセットアップ](#yaziのセットアップ) にまとめてあります。Finderの `Cmd+C` は設定なしでそのまま使えます。
 
 ### テキストのクリップボード履歴も残りますか？
 
@@ -193,6 +260,7 @@ App Sandboxを意図的にオフにしており、App Store配布・署名・公
 - **未署名・未公証です。** 初回起動時にGatekeeperが警告します。自分でビルドする必要があります。
 - **ファイルURLのみ対応します。** コピーしたテキスト、画像、プレーンテキストのパスは仕様として無視します。
 - **アプリ内ショートカットはありません。** 起動ショートカットは外部ツールに任せます。
+- **yaziにはカスタムキーバインドが必要です。** yazi標準の `y` は内部ヤンクでmacOSのペーストボードには書き込みません（[yaziのセットアップ](#yaziのセットアップ)）。
 - **ファイル操作はしません。** 移動・削除・リネームは恒久的にスコープ外です。
 - **ウィンドウ位置は固定です。** ミニウィンドウは常に左下に出て、位置は変更できません。
 - **プレビューやサムネイルはありません。** 各行はシステムアイコンとファイル名だけを表示します。
