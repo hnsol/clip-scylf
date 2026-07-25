@@ -164,7 +164,7 @@ Both windows are `NSPanel` instances with `.nonactivatingPanel` and `level = .fl
 
 **Manage the list.** In the tray: `Cmd+A` or the 全選択 button selects everything, the クリア button empties the list, the button on a row removes that row, and right-clicking selected rows offers リストから削除.
 
-**Close and reopen.** Closing the tray returns you to the mini window. Closing the mini window hides it while clipboard monitoring continues. The menu bar icon (`tray.full.fill`) reopens either window, or quits the app with `Cmd+Q`.
+**Close and reopen.** While the tray is open the mini window stays on screen in a dimmed state, as long as the list is not empty. Closing the tray returns you to the mini window. Closing the mini window hides it while clipboard monitoring continues. The menu bar icon (`tray.full.fill`) reopens either window, or quits the app with `Cmd+Q`.
 
 > **The UI labels are in Japanese.** Buttons read 全選択 (select all), クリア (clear), and リストから削除 (remove from list). There is no localization layer yet; see [Roadmap](#roadmap).
 

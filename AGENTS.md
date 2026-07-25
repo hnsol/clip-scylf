@@ -9,6 +9,9 @@ macOS用の常駐ミニアプリ。yaziやFinderでコピーされたファイ�
 ファイル選択はyazi/Finder側で行う。ClipScylfは「コピー済みファイルを
 外部アプリへ投げるための薄いトレイ」に徹する。
 
+yazi標準の `y` はyazi内部のヤンクで `NSPasteboard` には書かない。
+yaziから流し込むにはキーバインド追加が必須。一式は `examples/yazi/` にある。
+
 名前の由来: `Clip`（クリップボード）+ `Scylf`（shelfの古英語形）。
 
 ## 成立条件
@@ -34,8 +37,9 @@ macOS用の常駐ミニアプリ。yaziやFinderでコピーされたファイ�
 - ファイルURL取得は
   `readObjects(forClasses:[NSURL.self], options:[.urlReadingFileURLsOnly:true])`
   を使う。plain-textパスのフォールバックは不要。
-- ドラッグ出しは `NSItemProvider` に `UTType.fileURL.identifier` を渡し、
-  `suggestedName` でファイル名を保持する。
+- ドラッグ出しは `NSDraggingItem(pasteboardWriter:)` に `item.url as NSURL` を
+  渡す。ファイルURLそのものを書くので、ファイル名は自動的に保たれる。
+  テーブル側は `tableView(_:pasteboardWriterForRow:)` で同じNSURLを返す。
 
 ## 現在の仕様
 
@@ -45,10 +49,12 @@ macOS用の常駐ミニアプリ。yaziやFinderでコピーされたファイ�
 - 保持上限は20件。
 - 通常は窓なしで監視し、ファイルURL追加時に左下ミニウィンドウを出す。
 - ミニウィンドウをクリックすると通常ウィンドウへ拡大する。
+- 通常ウィンドウ表示中も、items が空でなければミニウィンドウは
+  非アクティブ表示のまま残す。空なら引っ込める。
 - 通常ウィンドウを閉じるとミニウィンドウへ戻る。
 - ミニウィンドウの閉じるボタンは非表示に戻すだけで、監視は継続する。
 - メニューバーから通常ウィンドウを開ける。
-- メニューバーアイコンは `archivebox.fill`。
+- メニューバーアイコンは `tray.full.fill`。
 - 複数行を選択してまとめてドラッグ&ドロップできる。
 - 通常ウィンドウで全選択できる。
 - 行ごとの削除ボタン、または右クリックで削除できる。
