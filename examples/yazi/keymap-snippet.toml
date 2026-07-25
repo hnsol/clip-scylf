@@ -1,0 +1,7 @@
+# Append this to ~/.config/yazi/keymap.toml
+# `;y` avoids shadowing yazi's built-in `y` (internal yank). Any key works.
+
+[[mgr.prepend_keymap]]
+on   = [ ";", "y" ]
+run  = "plugin system-clipboard copy"
+desc = "Copy files to system clipboard"

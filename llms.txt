@@ -17,7 +17,7 @@ ClipScylf polls `NSPasteboard.general.changeCount` every 0.5 seconds and, on cha
 5. The mini window appears at the bottom-left; click it to expand into the full tray
 6. Drag one or more rows into Teams, Mail, Slack, or a browser file-upload field
 
-To feed the shelf from yazi, one custom keybinding is required: yazi's built-in `y` yanks into yazi's own internal clipboard and never writes to `NSPasteboard`, so ClipScylf cannot see it. The README's "Setting Up yazi" section contains a complete working plugin, a Swift helper script that calls `NSPasteboard.writeObjects`, and the `keymap.toml` entry that binds them. Finder needs no setup.
+To feed the shelf from yazi, one custom keybinding is required: yazi's built-in `y` yanks into yazi's own internal clipboard and never writes to `NSPasteboard`, so ClipScylf cannot see it. The repository ships a working integration in `examples/yazi/` — a Lua plugin, a Swift helper that calls `NSPasteboard.writeObjects`, and a `keymap.toml` snippet — which is installed by copying three files into `~/.config/yazi/`. Finder needs no setup.
 
 ## Key Capabilities
 
@@ -52,7 +52,7 @@ To feed the shelf from yazi, one custom keybinding is required: yazi's built-in 
 - The app is unsigned and un-notarized; Gatekeeper warns on first launch.
 - Only file URLs are read — copied text, images, and plain-text paths are ignored by design.
 - No in-app keyboard shortcut to summon the shelf; external tools must activate the app.
-- yazi does not work out of the box: its built-in `y` is an internal yank that never reaches the macOS pasteboard, so a custom plugin and keybinding are required.
+- yazi does not work out of the box: its built-in `y` is an internal yank that never reaches the macOS pasteboard, so a custom plugin and keybinding are required (shipped ready to copy in `examples/yazi/`).
 - No file operations (move, delete, rename) — permanently out of scope.
 - The mini window position is fixed at the bottom-left and is not configurable.
 - No file previews or thumbnails.
@@ -102,6 +102,7 @@ Maccy and Paste are clipboard history managers: they record what was copied — 
 - [README_ja](README_ja.md): Japanese documentation with the same structure and facts.
 - [Comparison table](README.md#clipscylf-vs-yoink-vs-dropover-vs-finder): ClipScylf against Yoink, Dropover, and plain Finder, with "choose X when" guidance.
 - [Setting Up yazi](README.md#setting-up-yazi): Why yazi's `y` does not work, plus the plugin, script, and keymap that make it work.
+- [examples/yazi](examples/yazi/README.md): Ready-to-copy yazi plugin, Swift pasteboard helper, and keymap snippet, with install commands.
 - [FAQ](README.md#frequently-asked-questions): Thirteen questions on pricing, alternatives, yazi setup, capacity, focus behavior, CPU cost, and customization.
 - [Limitations](README.md#limitations): Explicit list of what ClipScylf does not do.
 - [Installation](README.md#installation): Build steps, Gatekeeper workaround, login-item setup.

@@ -34,7 +34,18 @@ To feed the shelf from yazi, see [Setting Up yazi](#setting-up-yazi) — yazi's 
 
 **yazi's built-in `y` does not work with ClipScylf.** It yanks into yazi's own internal clipboard, which lives in the yazi process and never touches `NSPasteboard`. ClipScylf sees nothing. To copy real file URLs to the macOS pasteboard, bind a key to a plugin that writes them there.
 
-Save a small Swift helper as `~/.config/yazi/scripts/copy-files-to-pasteboard.swift`:
+A working set of files ships in [examples/yazi/](examples/yazi/) — copy them in and you are done:
+
+```sh
+mkdir -p ~/.config/yazi/scripts ~/.config/yazi/plugins
+cp examples/yazi/copy-files-to-pasteboard.swift ~/.config/yazi/scripts/
+cp -R examples/yazi/system-clipboard.yazi ~/.config/yazi/plugins/
+cat examples/yazi/keymap-snippet.toml >> ~/.config/yazi/keymap.toml
+```
+
+Restart yazi, select files, and press `;y`. The rest of this section explains what those three files contain.
+
+The Swift helper at `~/.config/yazi/scripts/copy-files-to-pasteboard.swift` writes the paths it is given to the pasteboard as file URLs:
 
 ```swift
 #!/usr/bin/env swift
@@ -55,7 +66,7 @@ if !pasteboard.writeObjects(urls) {
 }
 ```
 
-Create the plugin at `~/.config/yazi/plugins/system-clipboard.yazi/main.lua`, which collects the selected (or hovered) files and passes them to that script:
+The plugin at `~/.config/yazi/plugins/system-clipboard.yazi/main.lua` collects the selected (or hovered) files and passes them to that script:
 
 ```lua
 local selected_or_hovered = ya.sync(function()
@@ -80,7 +91,9 @@ return {
 }
 ```
 
-Then bind it in `~/.config/yazi/keymap.toml`:
+This listing is abridged; the copy in [examples/yazi/](examples/yazi/) also reports errors and shows a notification with the copied file count.
+
+And the keymap entry in `~/.config/yazi/keymap.toml` binds it:
 
 ```toml
 [[mgr.prepend_keymap]]

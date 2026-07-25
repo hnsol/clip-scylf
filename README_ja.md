@@ -33,7 +33,18 @@ yaziから棚に流し込みたい場合は [yaziのセットアップ](#yaziの
 
 **yazi標準の `y` はClipScylfでは機能しません。** これはyazi内部のクリップボードへのヤンクで、yaziプロセス内で完結し、`NSPasteboard` には一切触れません。そのためClipScylfからは何も見えません。実際のファイルURLをmacOSのペーストボードへ書き込むには、その処理を行うプラグインにキーを割り当ててください。
 
-まず、小さなSwiftヘルパーを `~/.config/yazi/scripts/copy-files-to-pasteboard.swift` として保存します。
+動作する一式を [examples/yazi/](examples/yazi/) に同梱しています。コピーするだけで使えます。
+
+```sh
+mkdir -p ~/.config/yazi/scripts ~/.config/yazi/plugins
+cp examples/yazi/copy-files-to-pasteboard.swift ~/.config/yazi/scripts/
+cp -R examples/yazi/system-clipboard.yazi ~/.config/yazi/plugins/
+cat examples/yazi/keymap-snippet.toml >> ~/.config/yazi/keymap.toml
+```
+
+yaziを再起動してファイルを選択し、`;y` を押してください。以下はこの3つのファイルの中身の説明です。
+
+`~/.config/yazi/scripts/copy-files-to-pasteboard.swift` は、渡されたパスをファイルURLとしてペーストボードへ書き込みます。
 
 ```swift
 #!/usr/bin/env swift
@@ -54,7 +65,7 @@ if !pasteboard.writeObjects(urls) {
 }
 ```
 
-次に、選択中（またはホバー中）のファイルを集めて上記スクリプトへ渡すプラグインを `~/.config/yazi/plugins/system-clipboard.yazi/main.lua` に作ります。
+`~/.config/yazi/plugins/system-clipboard.yazi/main.lua` は、選択中（またはホバー中）のファイルを集めて上記スクリプトへ渡します。
 
 ```lua
 local selected_or_hovered = ya.sync(function()
@@ -79,7 +90,9 @@ return {
 }
 ```
 
-最後に `~/.config/yazi/keymap.toml` でキーを割り当てます。
+上の掲載は簡略版です。[examples/yazi/](examples/yazi/) に入っているものは、エラー通知とコピー件数の通知も出します。
+
+そして `~/.config/yazi/keymap.toml` のこの記述がキーを割り当てます。
 
 ```toml
 [[mgr.prepend_keymap]]
