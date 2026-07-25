@@ -8,6 +8,8 @@
 [![Platform: macOS 13+](https://img.shields.io/badge/Platform-macOS%2013%2B-lightgrey.svg)](#動作要件)
 [![Swift 5.9](https://img.shields.io/badge/Swift-5.9-orange.svg)](Package.swift)
 
+**[English documentation is in README.md →](README.md)**
+
 ---
 
 ClipScylfは、**コピーした**ファイルをフローティングの棚に溜めて、そこからドラッグ&ドロップできるようにするmacOSメニューバーアプリです。`NSPasteboard.general.changeCount` を0.5秒ごとに監視し、Finder、ターミナルファイラの [yazi](https://github.com/sxyazi/yazi)、その他ファイルURLをペーストボードに書き込むアプリからファイルがコピーされると、画面左下の小さなウィンドウにそのファイルを積みます。YoinkやDropoverのような棚アプリはファイルを棚に載せるために*ドラッグ操作*が必要ですが、ClipScylfは `Cmd+C`（yaziなら `y`）で棚が埋まるので、マウスに触れずにファイルを集められます。

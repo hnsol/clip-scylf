@@ -9,6 +9,8 @@
 [![Swift 5.9](https://img.shields.io/badge/Swift-5.9-orange.svg)](Package.swift)
 [![Build: swift build](https://img.shields.io/badge/Build-swift%20build-green.svg)](#installation)
 
+**[日本語のドキュメントは README_ja.md にあります →](README_ja.md)**
+
 ---
 
 ClipScylf is a macOS menu bar app that turns files you **copy** into a floating shelf you can drag from. It polls `NSPasteboard.general.changeCount` twice per second, and whenever a file URL is copied — from Finder, from the [yazi](https://github.com/sxyazi/yazi) terminal file manager, or from any app that writes file URLs to the pasteboard — it stacks that file into a small window at the bottom-left of the screen. Unlike drag-shelf apps such as Yoink and Dropover, which require you to *start a drag* to put a file on the shelf, ClipScylf fills itself from `Cmd+C` (or `y` in yazi), so files reach the shelf without ever touching the mouse.
