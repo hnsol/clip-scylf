@@ -40,6 +40,12 @@ yaziから流し込むにはキーバインド追加が必須。一式は `examp
 - ドラッグ出しは `NSDraggingItem(pasteboardWriter:)` に `item.url as NSURL` を
   渡す。ファイルURLそのものを書くので、ファイル名は自動的に保たれる。
   テーブル側は `tableView(_:pasteboardWriterForRow:)` で同じNSURLを返す。
+- macOS 27.2+ は、ClipScylf自身がファイルへの読み取り権限を持たないと
+  ファイルドラッグを黙って破棄する。Full Disk Access の付与が必要。
+- `build.sh` は `$CODESIGN_IDENTITY` があればそれで、なければ
+  `security find-identity` から見つかる最初の "Apple Development" 証明書で、
+  どちらもなければ ad-hoc（`-`）で `.app` を署名する。固定の署名IDに
+  することで、ビルドをやり直してもFull Disk Accessの許可が消えない。
 
 ## 現在の仕様
 
@@ -92,6 +98,7 @@ UI変更や実機で起動する `.app` に反映が必要な変更では、検�
 ## やらないこと
 
 - ファイル操作（移動・削除・リネーム）。
-- App Store配布、署名・公証。
+- App Store配布、配布用署名（Developer ID）・公証。
+  （`build.sh` によるローカル開発用の署名は行う）
 - アプリ内ショートカット設定UI。
 - アプリ内ファイルブラウザ、タグブラウザ、最近の項目一覧。

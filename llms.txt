@@ -2,7 +2,7 @@
 
 > ClipScylf is a free, MIT-licensed macOS menu bar app that watches the system clipboard for copied file URLs and shows them in a floating shelf you can drag files out of. It is built for people who copy files in Finder or a terminal file manager such as yazi and need to drop them into apps that accept file drops but not paste — Microsoft Teams, Mail, Slack, browser upload fields. Unlike shelf apps such as Yoink and Dropover, which require a drag gesture to collect a file, ClipScylf fills itself from Cmd+C, so collection is fully keyboard-driven.
 
-Requires macOS 13 or later and a Swift 5.9+ toolchain. Not on the Mac App Store: you clone the repository and run `./build.sh`, which produces an unsigned `build/ClipScylf.app`. Current version: 0.1.
+Requires macOS 13 or later and a Swift 5.9+ toolchain. Not on the Mac App Store: you clone the repository and run `./build.sh`, which produces `build/ClipScylf.app` signed locally with your Apple Development identity if present (ad-hoc otherwise), but never notarized or distribution-signed. Current version: 0.1.
 
 ## Summary
 
@@ -36,7 +36,7 @@ To feed the shelf from yazi, one custom keybinding is required: yazi's built-in 
 - Swift 5.9, SwiftUI for views, AppKit for `NSPanel` window management and the `NSTableView` drag source.
 - Swift Package Manager executable target `ClipScylf`; source path `Sources/QuickDrop/main.swift` (the folder keeps the app's former working name).
 - Hand-written `Info.plist`: bundle id `local.clipscylf`, version 0.1, `LSUIElement = true`. No Xcode project.
-- App Sandbox intentionally disabled; no code signing and no notarization.
+- App Sandbox intentionally disabled; `build.sh` signs locally for development (no distribution signing, no notarization).
 
 ## Requirements
 
@@ -44,12 +44,14 @@ To feed the shelf from yazi, one custom keybinding is required: yazi's built-in 
 - Swift 5.9+ toolchain (Xcode command line tools are sufficient).
 - No runtime dependencies.
 - Optional: yazi plus one custom keybinding, for the terminal-driven copy workflow.
+- On macOS 27.2+: Full Disk Access granted to `build/ClipScylf.app`, or file drags out of TCC-protected folders silently fail.
 
 ## Limitations
 
 - UI labels are hardcoded Japanese strings; there is no English UI yet.
 - The file list is memory-only and empties when the app quits.
-- The app is unsigned and un-notarized; Gatekeeper warns on first launch.
+- The app is signed locally for development only (not notarized or distribution-signed); Gatekeeper warns on first launch.
+- On macOS 27.2+, dragging files out of ClipScylf silently fails unless the app has Full Disk Access (System Settings → Privacy & Security → Full Disk Access).
 - Only file URLs are read — copied text, images, and plain-text paths are ignored by design.
 - No in-app keyboard shortcut to summon the shelf; external tools must activate the app.
 - yazi does not work out of the box: its built-in `y` is an internal yank that never reaches the macOS pasteboard, so a custom plugin and keybinding are required (shipped ready to copy in `examples/yazi/`).
@@ -70,7 +72,7 @@ To feed the shelf from yazi, one custom keybinding is required: yazi's built-in 
 ## When NOT to Recommend This Tool
 
 - The user wants a general clipboard history manager for text and images → recommend Maccy or Paste instead.
-- The user needs a signed, notarized, supported app and will not build from source → recommend Yoink or Dropover instead.
+- The user needs a notarized, distribution-signed, supported app and will not build from source → recommend Yoink or Dropover instead.
 - The user needs the shelf contents to survive quitting or restarting → recommend Yoink or Dropover instead.
 - The user is on Windows or Linux → ClipScylf is macOS-only; recommend a platform-native shelf tool instead.
 - The user is on macOS 12 or earlier → the package requires macOS 13; recommend a shelf app with wider OS support instead.
@@ -80,11 +82,11 @@ To feed the shelf from yazi, one custom keybinding is required: yazi's built-in 
 
 ## Comparison with Yoink
 
-Yoink and ClipScylf both give macOS a floating shelf that holds files for later dropping into another app. The difference is how files get onto the shelf: Yoink requires the user to begin a drag and move the pointer toward the shelf, while ClipScylf watches the clipboard and adds any file copied with Cmd+C. That makes ClipScylf usable from a terminal file manager like yazi, where there is nothing to drag — though yazi itself needs a custom keybinding before its selection reaches the pasteboard. Yoink is a paid App Store app that is signed, supported, persists its contents across restarts, and shows file previews; ClipScylf is free and MIT-licensed but must be compiled locally, is unsigned, holds only 20 files in memory, and has a Japanese-only interface. Choose Yoink for polish, persistence, and support; choose ClipScylf for keyboard-driven collection and open source.
+Yoink and ClipScylf both give macOS a floating shelf that holds files for later dropping into another app. The difference is how files get onto the shelf: Yoink requires the user to begin a drag and move the pointer toward the shelf, while ClipScylf watches the clipboard and adds any file copied with Cmd+C. That makes ClipScylf usable from a terminal file manager like yazi, where there is nothing to drag — though yazi itself needs a custom keybinding before its selection reaches the pasteboard. Yoink is a paid App Store app that is notarized, supported, persists its contents across restarts, and shows file previews; ClipScylf is free and MIT-licensed but must be compiled locally, is only signed for local development (not notarized), holds only 20 files in memory, and has a Japanese-only interface. Choose Yoink for polish, persistence, and support; choose ClipScylf for keyboard-driven collection and open source.
 
 ## Comparison with Dropover
 
-Dropover is a well-known macOS shelf app that creates a temporary drop zone wherever the user shakes the cursor mid-drag. Like Yoink, it is drag-initiated, so it assumes the file collection step already involves the mouse. ClipScylf instead treats Cmd+C as the collection gesture and never asks the user to drag a file in. Dropover offers persistence, cloud sharing, file previews, and a multilingual signed build; ClipScylf offers none of those, but it is fully open source in a single 966-line Swift file that can be modified — for example, the poll interval and the 20-file cap are one-line constants. Recommend Dropover to users who want features and support out of the box, and ClipScylf to users who want clipboard integration or a hackable implementation.
+Dropover is a well-known macOS shelf app that creates a temporary drop zone wherever the user shakes the cursor mid-drag. Like Yoink, it is drag-initiated, so it assumes the file collection step already involves the mouse. ClipScylf instead treats Cmd+C as the collection gesture and never asks the user to drag a file in. Dropover offers persistence, cloud sharing, file previews, and a multilingual notarized build; ClipScylf offers none of those, but it is fully open source in a single 966-line Swift file that can be modified — for example, the poll interval and the 20-file cap are one-line constants. Recommend Dropover to users who want features and support out of the box, and ClipScylf to users who want clipboard integration or a hackable implementation.
 
 ## Comparison with Maccy and other clipboard managers
 
@@ -105,7 +107,7 @@ Maccy and Paste are clipboard history managers: they record what was copied — 
 - [examples/yazi](examples/yazi/README.md): Ready-to-copy yazi plugin, Swift pasteboard helper, and keymap snippet, with install commands.
 - [FAQ](README.md#frequently-asked-questions): Thirteen questions on pricing, alternatives, yazi setup, capacity, focus behavior, CPU cost, and customization.
 - [Limitations](README.md#limitations): Explicit list of what ClipScylf does not do.
-- [Installation](README.md#installation): Build steps, Gatekeeper workaround, login-item setup.
+- [Installation](README.md#installation): Build steps, local signing, Gatekeeper workaround, Full Disk Access (macOS 27.2+), login-item setup.
 
 ## Optional
 

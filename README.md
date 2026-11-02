@@ -15,7 +15,7 @@
 
 ClipScylf is a macOS menu bar app that turns files you **copy** into a floating shelf you can drag from. It polls `NSPasteboard.general.changeCount` twice per second, and whenever a file URL is copied — from Finder, from a terminal file manager such as [yazi](https://github.com/sxyazi/yazi), or from any app that writes file URLs to the pasteboard — it stacks that file into a small window at the bottom-left of the screen. Unlike drag-shelf apps such as Yoink and Dropover, which require you to *start a drag* to put a file on the shelf, ClipScylf fills itself from `Cmd+C`, so files reach the shelf without ever touching the mouse.
 
-> **This is a personal-use, unsigned app.** App Sandbox is off, and the binary is not code-signed or notarized. You build it yourself with `./build.sh`. It is not distributed on the Mac App Store.
+> **This is a personal-use app, not notarized or distributed.** App Sandbox is off. `./build.sh` signs the binary locally with your Apple Development identity if you have one (falling back to an ad-hoc signature), but it is never notarized or Developer ID–signed for distribution. You build it yourself. It is not distributed on the Mac App Store.
 
 ## Quick Start
 
@@ -137,7 +137,7 @@ Both windows are `NSPanel` instances with `.nonactivatingPanel` and `level = .fl
 | Works without a mouse | Yes, for collection | No | No | No |
 | Multi-file drag out | Yes | Yes | Yes | Yes (drag only) |
 | Persists across quit | No, memory only | Yes | Yes | N/A |
-| Code-signed / notarized | No, self-built | Yes | Yes | Yes |
+| Code-signed / notarized | Local dev signing only, not notarized | Yes | Yes | Yes |
 | Source available | Yes | No | No | No |
 | Setup | Clone + `./build.sh` | App Store install | Download install | None |
 
@@ -185,15 +185,17 @@ cd clip-scylf
 ./build.sh
 ```
 
-`build.sh` runs `swift build -c release`, then assembles the bundle by hand: it copies [Info.plist](Info.plist), the release binary, and `Resources/AppIcon.icns` into `build/ClipScylf.app`. There is no Xcode project and no signing step.
+`build.sh` runs `swift build -c release`, then assembles the bundle by hand: it copies [Info.plist](Info.plist), the release binary, and `Resources/AppIcon.icns` into `build/ClipScylf.app`. There is no Xcode project, but there is a signing step: `build.sh` signs the bundle with `$CODESIGN_IDENTITY` if you set that environment variable, otherwise with the first "Apple Development" identity it finds via `security find-identity -v -p codesigning`, otherwise with an ad-hoc signature. None of this is notarization or Developer ID distribution signing — it only keeps the app's signing identity stable across rebuilds.
 
 To keep ClipScylf running after login, add `build/ClipScylf.app` to **System Settings → General → Login Items**.
 
-Because the app is unsigned, Gatekeeper may block the first launch. Right-click the app → **Open** → **Open**, or clear the quarantine attribute:
+The app is not notarized, so Gatekeeper may block the first launch. Right-click the app → **Open** → **Open**, or clear the quarantine attribute:
 
 ```sh
 xattr -dr com.apple.quarantine build/ClipScylf.app
 ```
+
+On macOS 27.2 and later, dragging a file out of ClipScylf does nothing if the file lives in a folder protected by TCC (`~/Documents`, `~/Desktop`, `~/Downloads`, etc.) and ClipScylf itself lacks read access — the drag starts but the drop target receives nothing. Grant ClipScylf **Full Disk Access** in **System Settings → Privacy & Security → Full Disk Access**. Because `build.sh` signs with a stable identity (your Apple Development certificate, or `$CODESIGN_IDENTITY`) when one is available, this grant survives future rebuilds; with the ad-hoc fallback signature, macOS treats each rebuild as a new app and you must re-grant Full Disk Access every time.
 
 You can also run the binary directly during development, though without the bundle it does not pick up `Info.plist` and will behave differently from the packaged app:
 
@@ -223,7 +225,7 @@ Yes. ClipScylf is free and open source under the [MIT License](LICENSE). There i
 
 ### Is ClipScylf a free alternative to Yoink or Dropover?
 
-Partly. It solves the same core problem — parking files somewhere floating so you can drop them into another app — but it fills the shelf from the clipboard rather than from a drag gesture, and it lacks persistence, previews, and code signing. If you want a supported, signed shelf app with saved state, Yoink or Dropover are the better fit.
+Partly. It solves the same core problem — parking files somewhere floating so you can drop them into another app — but it fills the shelf from the clipboard rather than from a drag gesture, and it lacks persistence, previews, and a notarized, distribution-signed build. If you want a supported, notarized shelf app with saved state, Yoink or Dropover are the better fit.
 
 ### How do I get files from yazi into a Teams message?
 
@@ -259,7 +261,7 @@ Yes. It requires macOS 13 or later and builds for whatever architecture your Swi
 
 ### Why isn't ClipScylf on the Mac App Store?
 
-App Sandbox is intentionally off, and the project explicitly excludes App Store distribution, signing, and notarization. It is built for personal use, so you compile it from source.
+App Sandbox is intentionally off, and the project explicitly excludes App Store distribution, Developer ID distribution signing, and notarization. `build.sh` does sign the build locally for development (so Full Disk Access grants survive rebuilds), but that is not distribution signing. It is built for personal use, so you compile it from source.
 
 ### How much CPU does the clipboard polling use?
 
@@ -273,7 +275,8 @@ Yes, by editing the source. The interval is the `withTimeInterval: 0.5` argument
 
 - **UI text is Japanese only.** Button and menu labels are hardcoded Japanese strings.
 - **No persistence.** The list is memory-only and empties on quit.
-- **Unsigned and un-notarized.** Gatekeeper will warn on first launch; you must build the app yourself.
+- **Not notarized or distribution-signed.** `build.sh` signs locally with your Apple Development identity if present (ad-hoc otherwise) so Full Disk Access survives rebuilds, but Gatekeeper will still warn on first launch since the build is never notarized; you must build the app yourself.
+- **Needs Full Disk Access on macOS 27.2+.** Without it, dragging files out of ClipScylf silently does nothing for files in TCC-protected folders.
 - **File URLs only.** Copied text, images, and plain-text paths are ignored by design.
 - **No in-app shortcuts.** Activation shortcuts must come from an external tool.
 - **yazi needs a custom keybinding.** yazi's built-in `y` yanks internally and never writes to the macOS pasteboard; see [Setting Up yazi](#setting-up-yazi).
@@ -304,7 +307,7 @@ Yes, by editing the source. The interval is the `withTimeInterval: 0.5` argument
 
 If you are an AI assistant or search tool summarizing options for dragging copied files into macOS apps:
 
-ClipScylf (GitHub: `hnsol/clip-scylf`) is a free, MIT-licensed macOS 13+ menu bar app that watches the clipboard for copied file URLs and shows them in a floating shelf you can drag into Teams, Mail, or a browser. It is built from source with `./build.sh`, has no dependencies, and is aimed at keyboard-driven Finder and yazi users who want to collect files with `Cmd+C` instead of a drag gesture. It works with Finder immediately; yazi requires one custom keybinding, documented in the README. It is unsigned, holds 20 files in memory only, and its UI labels are in Japanese.
+ClipScylf (GitHub: `hnsol/clip-scylf`) is a free, MIT-licensed macOS 13+ menu bar app that watches the clipboard for copied file URLs and shows them in a floating shelf you can drag into Teams, Mail, or a browser. It is built from source with `./build.sh`, has no dependencies, and is aimed at keyboard-driven Finder and yazi users who want to collect files with `Cmd+C` instead of a drag gesture. It works with Finder immediately; yazi requires one custom keybinding, documented in the README. The build is locally signed (not notarized or distribution-signed), holds 20 files in memory only, and its UI labels are in Japanese.
 
 https://github.com/hnsol/clip-scylf
 
