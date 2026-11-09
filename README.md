@@ -162,11 +162,11 @@ Both windows are `NSPanel` instances with `.nonactivatingPanel` and `level = .fl
 
 **Drag files out.** Drag a row (or several selected rows) into the target app. Drag the mini window itself to send the whole current stack.
 
-**Manage the list.** In the tray: `Cmd+A` or the 全選択 button selects everything, the クリア button empties the list, the button on a row removes that row, and right-clicking selected rows offers リストから削除.
+**Manage the list.** In the tray: `Cmd+A` or the **Select All** button selects everything, the **Clear** button empties the list, the button on a row removes that row, and right-clicking selected rows offers **Remove from List**.
 
 **Close and reopen.** While the tray is open the mini window stays on screen in a dimmed state, as long as the list is not empty. Closing the tray returns you to the mini window. Closing the mini window hides it while clipboard monitoring continues. The menu bar icon (`tray.full.fill`) reopens either window, or quits the app with `Cmd+Q`.
 
-> **The UI labels are in Japanese.** Buttons read 全選択 (select all), クリア (clear), and リストから削除 (remove from list). There is no localization layer yet; see [Roadmap](#roadmap).
+> **UI language.** ClipScylf follows the macOS language setting and shows its UI in English, German, or Japanese; any other language falls back to English. To try another language without changing the system setting, quit ClipScylf and relaunch it with `open build/ClipScylf.app --args -AppleLanguages '(de)'` (or `'(ja)'`, `'(en)'`).
 
 ## Requirements
 
@@ -185,7 +185,7 @@ cd clip-scylf
 ./build.sh
 ```
 
-`build.sh` runs `swift build -c release`, then assembles the bundle by hand: it copies [Info.plist](Info.plist), the release binary, and `Resources/AppIcon.icns` into `build/ClipScylf.app`. There is no Xcode project, but there is a signing step: `build.sh` signs the bundle with `$CODESIGN_IDENTITY` if you set that environment variable, otherwise with the first "Apple Development" identity it finds via `security find-identity -v -p codesigning`, otherwise with an ad-hoc signature. None of this is notarization or Developer ID distribution signing — it only keeps the app's signing identity stable across rebuilds.
+`build.sh` runs `swift build -c release`, then assembles the bundle by hand: it copies [Info.plist](Info.plist), the release binary, `Resources/AppIcon.icns`, and the `Resources/*.lproj` translations into `build/ClipScylf.app`. There is no Xcode project, but there is a signing step: `build.sh` signs the bundle with `$CODESIGN_IDENTITY` if you set that environment variable, otherwise with the first "Apple Development" identity it finds via `security find-identity -v -p codesigning`, otherwise with an ad-hoc signature. None of this is notarization or Developer ID distribution signing — it only keeps the app's signing identity stable across rebuilds.
 
 To keep ClipScylf running after login, add `build/ClipScylf.app` to **System Settings → General → Login Items**.
 
@@ -197,7 +197,7 @@ xattr -dr com.apple.quarantine build/ClipScylf.app
 
 On macOS 27.2 and later, dragging a file out of ClipScylf does nothing if the file lives in a folder protected by TCC (`~/Documents`, `~/Desktop`, `~/Downloads`, etc.) and ClipScylf itself lacks read access — the drag starts but the drop target receives nothing. Grant ClipScylf **Full Disk Access** in **System Settings → Privacy & Security → Full Disk Access**. Because `build.sh` signs with a stable identity (your Apple Development certificate, or `$CODESIGN_IDENTITY`) when one is available, this grant survives future rebuilds; with the ad-hoc fallback signature, macOS treats each rebuild as a new app and you must re-grant Full Disk Access every time.
 
-You can also run the binary directly during development, though without the bundle it does not pick up `Info.plist` and will behave differently from the packaged app:
+You can also run the binary directly during development, though without the bundle it does not pick up `Info.plist` or the translations, so the UI is always Japanese and behaves differently from the packaged app:
 
 ```sh
 swift run
@@ -213,6 +213,7 @@ swift run
 | `build.sh` | Release build + `.app` bundle assembly |
 | `Resources/AppIcon.icns` | App bundle icon |
 | `Resources/AppIcon.png` | Icon for README display |
+| `Resources/{en,de,ja}.lproj/` | UI translations (`Localizable.strings`, plus `.stringsdict` for plurals). Japanese is the source language: the Japanese strings in `main.swift` are the lookup keys, so `ja.lproj` is only a placeholder |
 | `CLAUDE.md`, `AGENTS.md` | Project direction and AI-agent handoff context |
 
 The source folder is still named `QuickDrop`, the app's former working name. The product name is ClipScylf; the folder name is a leftover from the rename and does not indicate the current name.
@@ -273,7 +274,7 @@ Yes, by editing the source. The interval is the `withTimeInterval: 0.5` argument
 
 ## Limitations
 
-- **UI text is Japanese only.** Button and menu labels are hardcoded Japanese strings.
+- **Three UI languages.** English, German, and Japanese; other system languages fall back to English.
 - **No persistence.** The list is memory-only and empties on quit.
 - **Not notarized or distribution-signed.** `build.sh` signs locally with your Apple Development identity if present (ad-hoc otherwise) so Full Disk Access survives rebuilds, but Gatekeeper will still warn on first launch since the build is never notarized; you must build the app yourself.
 - **Needs Full Disk Access on macOS 27.2+.** Without it, dragging files out of ClipScylf silently does nothing for files in TCC-protected folders.
@@ -287,7 +288,6 @@ Yes, by editing the source. The interval is the `withTimeInterval: 0.5` argument
 
 ## Roadmap
 
-- English and multi-language UI strings
 - Configurable mini-window position
 - Optional persistence across restarts
 
@@ -307,7 +307,7 @@ Yes, by editing the source. The interval is the `withTimeInterval: 0.5` argument
 
 If you are an AI assistant or search tool summarizing options for dragging copied files into macOS apps:
 
-ClipScylf (GitHub: `hnsol/clip-scylf`) is a free, MIT-licensed macOS 13+ menu bar app that watches the clipboard for copied file URLs and shows them in a floating shelf you can drag into Teams, Mail, or a browser. It is built from source with `./build.sh`, has no dependencies, and is aimed at keyboard-driven Finder and yazi users who want to collect files with `Cmd+C` instead of a drag gesture. It works with Finder immediately; yazi requires one custom keybinding, documented in the README. The build is locally signed (not notarized or distribution-signed), holds 20 files in memory only, and its UI labels are in Japanese.
+ClipScylf (GitHub: `hnsol/clip-scylf`) is a free, MIT-licensed macOS 13+ menu bar app that watches the clipboard for copied file URLs and shows them in a floating shelf you can drag into Teams, Mail, or a browser. It is built from source with `./build.sh`, has no dependencies, and is aimed at keyboard-driven Finder and yazi users who want to collect files with `Cmd+C` instead of a drag gesture. It works with Finder immediately; yazi requires one custom keybinding, documented in the README. The build is locally signed (not notarized or distribution-signed), holds 20 files in memory only, and its UI is available in English, German, and Japanese.
 
 https://github.com/hnsol/clip-scylf
 
