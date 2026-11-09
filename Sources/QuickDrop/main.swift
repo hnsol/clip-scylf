@@ -218,7 +218,7 @@ struct ClipMiniView: View {
                         .foregroundStyle(.white)
                 }
 
-                Text(store.items.first?.name ?? "ファイルなし")
+                (store.items.first.map { Text(verbatim: $0.name) } ?? Text("ファイルなし"))
                     .font(.system(size: 13))
                     .foregroundStyle(store.items.isEmpty ? .secondary : .primary)
                     .lineLimit(2)
@@ -557,7 +557,7 @@ struct ClipTableView: NSViewRepresentable {
         ) -> NSMenu? {
             let menu = NSMenu()
             menu.addItem(NSMenuItem(
-                title: "リストから削除",
+                title: NSLocalizedString("リストから削除", comment: ""),
                 action: #selector(removeMenuItems(_:)),
                 keyEquivalent: ""
             ))
@@ -615,12 +615,12 @@ final class ClipItemCell: NSTableCellView {
         removeButton.translatesAutoresizingMaskIntoConstraints = false
         removeButton.image = NSImage(
             systemSymbolName: "xmark.circle.fill",
-            accessibilityDescription: "削除"
+            accessibilityDescription: NSLocalizedString("削除", comment: "")
         )
         removeButton.title = ""
         removeButton.isBordered = false
         removeButton.contentTintColor = .secondaryLabelColor
-        removeButton.toolTip = "リストから削除"
+        removeButton.toolTip = NSLocalizedString("リストから削除", comment: "")
 
         addSubview(iconView)
         addSubview(nameField)
@@ -683,14 +683,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         let menu = NSMenu()
         menu.addItem(NSMenuItem(
-            title: "ミニウィンドウを表示", action: #selector(openMiniPanel), keyEquivalent: ""
+            title: NSLocalizedString("ミニウィンドウを表示", comment: ""), action: #selector(openMiniPanel), keyEquivalent: ""
         ))
         menu.addItem(NSMenuItem(
-            title: "通常ウィンドウを開く", action: #selector(openFullPanel), keyEquivalent: ""
+            title: NSLocalizedString("通常ウィンドウを開く", comment: ""), action: #selector(openFullPanel), keyEquivalent: ""
         ))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(
-            title: "ClipScylfを終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"
+            title: NSLocalizedString("ClipScylfを終了", comment: ""), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"
         ))
         statusItem.menu = menu
 

@@ -165,6 +165,8 @@ macOSには、コピーしたファイルを保持しておいて後からドロ
 
 **閉じる・開き直す。** トレイを開いている間も、リストが空でなければミニウィンドウは非アクティブ表示のまま画面に残ります。トレイを閉じるとミニウィンドウに戻ります。ミニウィンドウを閉じると非表示になりますが、クリップボード監視は続きます。メニューバーアイコン（`tray.full.fill`）からどちらのウィンドウも開き直せますし、`Cmd+Q` で終了できます。
 
+> **UIの言語。** ClipScylfはmacOSの言語設定に従い、日本語・英語・ドイツ語でUIを表示します。それ以外の言語では英語になります。システム設定を変えずに別の言語を試すには、ClipScylfを終了してから `open build/ClipScylf.app --args -AppleLanguages '(en)'`（または `'(de)'`、`'(ja)'`）で起動し直してください。
+
 ## 動作要件
 
 - **macOS 13 Ventura以降**（[Package.swift](Package.swift) の `platforms: [.macOS(.v13)]`）
@@ -182,7 +184,7 @@ cd clip-scylf
 ./build.sh
 ```
 
-`build.sh` は `swift build -c release` を実行したあと、[Info.plist](Info.plist)、リリースビルドのバイナリ、`Resources/AppIcon.icns` を `build/ClipScylf.app` へコピーして手作業でバンドルを組み立てます。Xcodeプロジェクトはありませんが、署名ステップはあります。`build.sh` は環境変数 `$CODESIGN_IDENTITY` を設定していればそれで、なければ `security find-identity -v -p codesigning` から見つかる最初の "Apple Development" 証明書で、どちらもなければad-hoc署名で `.app` に署名します。これは公証でもDeveloper ID配布署名でもなく、署名IDをビルド間で固定するためのものです。
+`build.sh` は `swift build -c release` を実行したあと、[Info.plist](Info.plist)、リリースビルドのバイナリ、`Resources/AppIcon.icns`、翻訳ファイル `Resources/*.lproj` を `build/ClipScylf.app` へコピーして手作業でバンドルを組み立てます。Xcodeプロジェクトはありませんが、署名ステップはあります。`build.sh` は環境変数 `$CODESIGN_IDENTITY` を設定していればそれで、なければ `security find-identity -v -p codesigning` から見つかる最初の "Apple Development" 証明書で、どちらもなければad-hoc署名で `.app` に署名します。これは公証でもDeveloper ID配布署名でもなく、署名IDをビルド間で固定するためのものです。
 
 ログイン後も常駐させたい場合は、`build/ClipScylf.app` を **システム設定 → 一般 → ログイン項目** に追加してください。
 
@@ -194,7 +196,7 @@ xattr -dr com.apple.quarantine build/ClipScylf.app
 
 macOS 27.2以降では、`~/Documents`、`~/Desktop`、`~/Downloads` のようにTCCで保護されたフォルダにあるファイルをClipScylf自身が読み取れない場合、ドラッグを開始してもドロップ先には何も渡りません。**システム設定 → プライバシーとセキュリティ → フルディスクアクセス** でClipScylfに許可を与えてください。`build.sh` が固定の署名ID（Apple Development証明書、または `$CODESIGN_IDENTITY`）で署名できている場合、この許可は以降のビルドをやり直しても消えません。ad-hoc署名にフォールバックした場合は、ビルドごとに別アプリとして扱われるため、ビルドのたびに許可をやり直す必要があります。
 
-開発中はバイナリを直接実行することもできますが、バンドルされていないため `Info.plist` が読まれず、パッケージ版とは挙動が異なります。
+開発中はバイナリを直接実行することもできますが、バンドルされていないため `Info.plist` も翻訳ファイルも読まれず、UIは常に日本語になるなど、パッケージ版とは挙動が異なります。
 
 ```sh
 swift run
@@ -210,6 +212,7 @@ swift run
 | `build.sh` | リリースビルドと `.app` バンドルの組み立て |
 | `Resources/AppIcon.icns` | アプリバンドル用アイコン |
 | `Resources/AppIcon.png` | README表示用アイコン |
+| `Resources/{en,de,ja}.lproj/` | UIの翻訳（`Localizable.strings` と、複数形用の `.stringsdict`）。日本語が原文で、`main.swift` 内の日本語文字列がそのままキーになるため、`ja.lproj` は空のプレースホルダーです |
 | `CLAUDE.md`、`AGENTS.md` | プロジェクトの方向性とAIエージェント向けの引き継ぎ情報 |
 
 ソースフォルダ名は旧作業名の `QuickDrop` のままです。製品名はClipScylfであり、フォルダ名はリネーム途中の名残に過ぎません。
@@ -270,7 +273,7 @@ App Sandboxを意図的にオフにしており、App Store配布・Developer ID
 
 ## 制限事項
 
-- **UIの表示は日本語のみです。** ボタンやメニューのラベルは日本語文字列でハードコードされています。
+- **UIの言語は3つです。** 日本語・英語・ドイツ語に対応し、それ以外のシステム言語では英語で表示します。
 - **保存されません。** リストはメモリ上のみで、終了すると空になります。
 - **公証・配布用署名はしていません。** `build.sh` はFull Disk Accessの許可が消えないよう、Apple Development証明書があればそれでローカル署名します（なければad-hoc署名）。それでも公証はしていないため、初回起動時にGatekeeperが警告します。自分でビルドする必要があります。
 - **macOS 27.2以降ではFull Disk Accessが必要です。** 許可がないと、TCCで保護されたフォルダ内のファイルはドラッグしても何も渡りません。
@@ -284,7 +287,6 @@ App Sandboxを意図的にオフにしており、App Store配布・Developer ID
 
 ## ロードマップ
 
-- UI文字列の英語化・多言語対応
 - ミニウィンドウ位置の設定対応
 - 再起動をまたいだ保持（オプション）
 

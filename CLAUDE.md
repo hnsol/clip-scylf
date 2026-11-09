@@ -65,6 +65,9 @@ yaziから流し込むにはキーバインド追加が必須。一式は `examp
 - 通常ウィンドウで全選択できる。
 - 行ごとの削除ボタン、または右クリックで削除できる。
 - 下部ボタンで全件クリアできる。
+- UIは日本語・英語・ドイツ語に対応する。日本語が原文で、文字列キーも日本語。
+  訳は `Resources/{en,de}.lproj/Localizable.strings(dict)`。
+  該当言語がなければ英語（`CFBundleDevelopmentRegion = en`）。
 
 ## プロジェクト構成
 
@@ -72,8 +75,8 @@ yaziから流し込むにはキーバインド追加が必須。一式は `examp
 - SPM executable target + 手書き `Info.plist`。
 - ビルドは `swift build` または `./build.sh`。
 - `.app` バンドル化は `build.sh` で行う。
-- `build.sh` は `Info.plist`、実行ファイル、`Resources/AppIcon.icns` を
-  `.app` へコピーする。
+- `build.sh` は `Info.plist`、実行ファイル、`Resources/AppIcon.icns`、
+  `Resources/*.lproj` を `.app` へコピーする。
 - 主実装は `Sources/QuickDrop/main.swift`。
   フォルダ名は移行途中で残っていてもよい。名称上の正はClipScylf。
 

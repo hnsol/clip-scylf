@@ -11,6 +11,7 @@ mkdir -p "$APP/Contents/Resources"
 cp Info.plist "$APP/Contents/"
 cp .build/release/ClipScylf "$APP/Contents/MacOS/"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+cp -R Resources/*.lproj "$APP/Contents/Resources/"
 
 # macOS 27.2+ drops file drags unless the app itself can read the file,
 # so ClipScylf needs Full Disk Access. Sign with a stable identity so the
